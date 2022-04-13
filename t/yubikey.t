@@ -6,12 +6,12 @@ use strict;
 use lib 't/lib';
 use TestCommon;
 
+use Config;
+use File::KDBX::Key::YubiKey;
 use Test::More;
 
-BEGIN { use_ok 'File::KDBX::Key::YubiKey' }
-
-local $ENV{YKCHALRESP} = testfile(qw{bin ykchalresp});
-local $ENV{YKINFO}     = testfile(qw{bin ykinfo});
+@ENV{qw(YKCHALRESP YKCHALRESP_FLAGS)}   = ($Config{perlpath}, testfile(qw{bin ykchalresp}));
+@ENV{qw(YKINFO YKINFO_FLAGS)}           = ($Config{perlpath}, testfile(qw{bin ykinfo}));
 
 {
     my ($pre, $post);
@@ -20,8 +20,7 @@ local $ENV{YKINFO}     = testfile(qw{bin ykinfo});
         post_challenge  => sub { ++$post },
     );
     my $resp;
-    is exception { $resp = $key->challenge('foo') }, undef,
-        'Do not throw during non-blocking response';
+    is exception { $resp = $key->challenge('foo') }, undef, 'Do not throw during non-blocking response';
     is $resp, "\xf0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 'Get a non-blocking challenge response';
     is length($resp), 20, 'Response is the proper length';
     is $pre,  1, 'The pre-challenge callback is called';
@@ -77,6 +76,7 @@ local $ENV{YKINFO}     = testfile(qw{bin ykinfo});
 
 {
     local $ENV{YKCHALRESP} = testfile(qw{bin nonexistent});
+    local $ENV{YKCHALRESP_FLAGS} = undef;
     my $key = File::KDBX::Key::YubiKey->new;
     like exception { $key->challenge('foo') }, qr/failed to run|failed to receive challenge response/i,
         'Throw if the program failed to run';

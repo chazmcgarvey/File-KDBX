@@ -8,6 +8,7 @@ use File::KDBX::Constants qw(:yubikey);
 use File::KDBX::Error;
 use File::KDBX::Util qw(pad_pkcs7);
 use IPC::Open3;
+use Ref::Util qw(is_arrayref);
 use Scope::Guard;
 use Symbol qw(gensym);
 use namespace::clean;
@@ -38,7 +39,7 @@ sub challenge {
         $hook->($self, $challenge);
     }
 
-    my @cmd = ($self->ykchalresp, "-n$device", "-$slot", qw{-H -i-}, $timeout == 0 ? '-N' : ());
+    my @cmd = ($self->_program('ykchalresp'), "-n$device", "-$slot", qw{-H -i-}, $timeout == 0 ? '-N' : ());
     my ($pid, $child_in, $child_out, $child_err) = _run_ykpers(@cmd);
     push @cleanup, Scope::Guard->new(sub { kill $pid if defined $pid });
 
@@ -310,7 +311,7 @@ sub _get_yubikey_info {
     my $self = shift;
     my $device = shift;
 
-    my @cmd = ($self->ykinfo, "-n$device", qw{-a});
+    my @cmd = ($self->_program('ykinfo'), "-n$device", qw{-a});
 
     my $try = 0;
     TRY:
@@ -361,12 +362,22 @@ sub _set_yubikey_info {
     @$self{keys %info} = values %info;
 }
 
+sub _program {
+    my $self = shift;
+    my $name = shift;
+    my @cmd = $self->$name // $name;
+    my $name_uc = uc($name);
+    my $flags = $ENV{"${name_uc}_FLAGS"};
+    push @cmd, split(/\h+/, $flags) if $flags;
+    return @cmd;
+}
+
 sub _run_ykpers {
     my ($child_err, $child_in, $child_out) = (gensym);
     my $pid = eval { open3($child_in, $child_out, $child_err, @_) };
     if (my $err = $@) {
         throw "Failed to run $_[0] - Make sure you have the YubiKey Personalization Tool (CLI) package installed.\n",
-            error   => $err;
+            error => $err;
     }
     return ($pid, $child_in, $child_out, $child_err);
 }
@@ -436,9 +447,11 @@ See L<https://keepassxc.org/docs/#faq-yubikey-howto> for more information.
 
 =for :list
 * C<YKCHALRESP> - Path to the L<ykchalresp(1)> program
+* C<YKCHALRESP_FLAGS> - Extra arguments to the B<ykchalresp> program
 * C<YKINFO> - Path to the L<ykinfo(1)> program
+* C<YKINFO_FLAGS> - Extra arguments to the B<ykinfo> program
 
-C<YubiKey> searches for these programs in the same way perl typically searches for executables (using the
+B<YubiKey> searches for these programs in the same way perl typically searches for executables (using the
 C<PATH> environment variable on many platforms). If the programs aren't installed normally, or if you want to
 override the default programs, these environment variables can be used.
 

@@ -1,76 +1,55 @@
-#!/bin/sh
+#!/usr/bin/env perl
 
 # This is a fake ykchalresp program that provides canned responses, for testing.
 
-device=
-slot=
-blocking=1
-hmac=
-in=
+use warnings;
+use strict;
 
-while getopts 12HNn:i: arg
-do
-    case "$arg" in
-        n)
-            device="$OPTARG"
-            ;;
-        1)
-            slot=1
-            ;;
-        2)
-            slot=2
-            ;;
-        H)
-            hmac=1
-            ;;
-        N)
-            blocking=0
-            ;;
-        i)
-            in="$OPTARG"
-            ;;
-    esac
-done
+use Getopt::Std;
 
-if [ -z "$hmac" ]
-then
-    echo 'HMAC-SHA1 not requested' >&2
-    exit 3
-fi
+my %opts;
+getopts('12HNn:i:', \%opts);
 
-if [ "$in" != '-' ]
-then
-    echo "Unexpected input file: $in" >&2
-    exit 3
-fi
+my ($device, $hmac, $nonblocking, $in) = @opts{qw(n H N i)};
 
-read challenge
-
-succeed() {
-    echo "${YKCHALRESP_RESPONSE:-f000000000000000000000000000000000000000}"
-    exit 0
+if (!$hmac) {
+    print STDERR "HMAC-SHA1 not requested\n";
+    exit 3;
+}
+elsif (!defined($in) || $in ne '-') {
+    $in //= '(none)';
+    print STDERR "Unexpected input file: $in\n";
+    exit 3;
 }
 
-case "$YKCHALRESP_MOCK" in
-    block)
-        if [ "$blocking" -eq 0 ]
-        then
-            echo "Yubikey core error: operation would block" >&2
-            exit 1
-        fi
-        sleep 2
-        succeed
-        ;;
-    error)
-        echo "Yubikey core error: ${YKCHALRESP_ERROR:-not yet implemented}" >&2
-        exit 1
-        ;;
-    usberror)
-        echo "USB error: something happened" >&2
-        exit 1
-        ;;
-    *)  # OK
-        succeed
-        ;;
-esac
-exit 2
+my $challenge = <STDIN>;
+
+my $mock = $ENV{YKCHALRESP_MOCK} || '';
+if ($mock eq 'block') {
+    if ($nonblocking) {
+        print STDERR "Yubikey core error: operation would block\n";
+        exit 1;
+    }
+    sleep 2;
+    succeed();
+}
+elsif ($mock eq 'error') {
+    my $resp = $ENV{YKCHALRESP_ERROR} || 'not yet implemented';
+    print STDERR "Yubikey core error: $resp\n";
+    exit 1;
+}
+elsif ($mock eq 'usberror') {
+    print STDERR "USB error: something happened\n";
+    exit 1;
+}
+else {  # OK
+    succeed();
+}
+
+sub succeed {
+    my $resp = $ENV{YKCHALRESP_RESPONSE} || 'f000000000000000000000000000000000000000';
+    print "$resp\n";
+    exit 0;
+}
+
+exit 2;
