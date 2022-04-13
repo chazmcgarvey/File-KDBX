@@ -1,0 +1,26 @@
+package File::KDBX::Key::Password;
+# ABSTRACT: A password key
+
+use warnings;
+use strict;
+
+use Crypt::Digest qw(digest_data);
+use Encode qw(encode);
+use File::KDBX::Error;
+use File::KDBX::Util qw(erase);
+use namespace::clean;
+
+use parent 'File::KDBX::Key';
+
+our $VERSION = '999.999'; # VERSION
+
+sub init {
+    my $self = shift;
+    my $primitive = shift // throw 'Missing key primitive';
+
+    $self->_set_raw_key(digest_data('SHA256', encode('UTF-8', $primitive)));
+
+    return $self->hide;
+}
+
+1;

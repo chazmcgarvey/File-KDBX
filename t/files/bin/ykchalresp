@@ -1,0 +1,76 @@
+#!/bin/sh
+
+# This is a fake ykchalresp program that provides canned responses, for testing.
+
+device=
+slot=
+blocking=1
+hmac=
+in=
+
+while getopts 12HNn:i: arg
+do
+    case "$arg" in
+        n)
+            device="$OPTARG"
+            ;;
+        1)
+            slot=1
+            ;;
+        2)
+            slot=2
+            ;;
+        H)
+            hmac=1
+            ;;
+        N)
+            blocking=0
+            ;;
+        i)
+            in="$OPTARG"
+            ;;
+    esac
+done
+
+if [ -z "$hmac" ]
+then
+    echo 'HMAC-SHA1 not requested' >&2
+    exit 3
+fi
+
+if [ "$in" != '-' ]
+then
+    echo "Unexpected input file: $in" >&2
+    exit 3
+fi
+
+read challenge
+
+succeed() {
+    echo "${YKCHALRESP_RESPONSE:-f000000000000000000000000000000000000000}"
+    exit 0
+}
+
+case "$YKCHALRESP_MOCK" in
+    block)
+        if [ "$blocking" -eq 0 ]
+        then
+            echo "Yubikey core error: operation would block" >&2
+            exit 1
+        fi
+        sleep 2
+        succeed
+        ;;
+    error)
+        echo "Yubikey core error: ${YKCHALRESP_ERROR:-not yet implemented}" >&2
+        exit 1
+        ;;
+    usberror)
+        echo "USB error: something happened" >&2
+        exit 1
+        ;;
+    *)  # OK
+        succeed
+        ;;
+esac
+exit 2

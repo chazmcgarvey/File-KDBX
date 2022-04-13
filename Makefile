@@ -4,16 +4,17 @@
 CPANM   = cpanm
 COVER   = cover
 DZIL    = dzil
+PERL    = perl
 PROVE   = prove
 
-.PHONY: all bootstrap clean cover dist test
+cpanm_env = AUTHOR_TESTING=0 RELEASE_TESTING=0
 
-all: bootstrap dist
+all: dist
 
 bootstrap:
-	$(CPANM) Dist::Zilla
-	$(DZIL) authordeps --missing | $(CPANM)
-	$(DZIL) listdeps --develop --missing | $(CPANM)
+	$(cpanm_env) $(CPANM) -nq Dist::Zilla
+	$(DZIL) authordeps --missing |$(cpanm_env) $(CPANM) -nq
+	$(DZIL) listdeps --develop --missing |$(cpanm_env) $(CPANM) -nq
 
 clean:
 	$(DZIL) $@
@@ -25,5 +26,14 @@ dist:
 	$(DZIL) build
 
 test:
-	$(PROVE) -l $(if $(V),-v)
+	$(PROVE) -l $(if $(V),-vj1)
 
+smoke:
+	smoke-all file-kdbx File-KDBX-$V.tar.gz
+
+smokers:
+	$(DZIL) listdeps --no-recommends --no-suggests --no-develop --cpanm-versions \
+	|$(PERL) -pe 's/"//g' \
+	|build-perl-smokers file-kdbx
+
+.PHONY: all bootstrap clean cover dist smoke smokers test

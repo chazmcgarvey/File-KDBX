@@ -1,0 +1,43 @@
+#!/bin/sh
+
+# This is a fake ykinfo program that provides canned responses, for testing.
+
+device=
+all=
+
+while getopts an: arg
+do
+    case "$arg" in
+        n)
+            device="$OPTARG"
+            ;;
+        a)
+            all=1
+            ;;
+    esac
+done
+
+case "$device" in
+    0)
+        printf 'serial: 123
+version: 2.0.0
+touch_level: 0
+vendor_id: 1050
+product_id: 113
+'
+        exit 0
+        ;;
+    1)
+        printf 'serial: 456
+version: 3.0.1
+touch_level: 10
+vendor_id: 1050
+product_id: 401
+'
+        exit 0
+        ;;
+    *)
+        echo "Yubikey core error: no yubikey present" >&2
+        exit 1
+esac
+
