@@ -10,6 +10,8 @@ use Config;
 use File::KDBX::Key::YubiKey;
 use Test::More;
 
+$^O eq 'MSWin32' and plan skip_all => 'Non-Windows required to test YubiKeys';
+
 @ENV{qw(YKCHALRESP YKCHALRESP_FLAGS)}   = ($Config{perlpath}, testfile(qw{bin ykchalresp}));
 @ENV{qw(YKINFO YKINFO_FLAGS)}           = ($Config{perlpath}, testfile(qw{bin ykinfo}));
 
@@ -50,7 +52,7 @@ use Test::More;
 
     $key->timeout(1);
     like exception { $key->challenge('foo') }, qr/timed out/i,
-        'Timed out while waiting for response';
+        'Timeout while waiting for response';
 
     $key->timeout(-1);
     my $resp;
@@ -63,14 +65,14 @@ use Test::More;
     my $key = File::KDBX::Key::YubiKey->new(device => 0, slot => 1);
     is $key->name, 'YubiKey NEO FIDO v2.0.0 [123] (slot #1)',
         'Get name for a new, unscanned key';
-    is $key->serial, 123, 'We have the serial number of the new key';
+    is $key->serial, 123, 'Get the serial number of the new key';
 }
 
 {
     my ($key, @other) = File::KDBX::Key::YubiKey->scan;
     is $key->name, 'YubiKey 4/5 OTP v3.0.1 [456] (slot #2)',
         'Find expected YubiKey';
-    is $key->serial, 456, 'We have the serial number of the scanned key';
+    is $key->serial, 456, 'Get the serial number of the scanned key';
     is scalar @other, 0, 'Do not find any other YubiKeys';
 }
 

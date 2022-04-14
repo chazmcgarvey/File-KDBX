@@ -6,10 +6,9 @@ use strict;
 
 use File::KDBX::Constants qw(:yubikey);
 use File::KDBX::Error;
-use File::KDBX::Util qw(pad_pkcs7);
-use IPC::Open3;
+use File::KDBX::Util qw(:io pad_pkcs7);
+use IPC::Cmd 0.52 qw(run_forked);
 use Ref::Util qw(is_arrayref);
-use Scope::Guard;
 use Symbol qw(gensym);
 use namespace::clean;
 
@@ -25,8 +24,6 @@ sub challenge {
     my $challenge = shift;
     my %args = @_;
 
-    my @cleanup;
-
     my $device  = $args{device}  // $self->device;
     my $slot    = $args{slot}    // $self->slot;
     my $timeout = $args{timeout} // $self->timeout;
@@ -40,43 +37,33 @@ sub challenge {
     }
 
     my @cmd = ($self->_program('ykchalresp'), "-n$device", "-$slot", qw{-H -i-}, $timeout == 0 ? '-N' : ());
-    my ($pid, $child_in, $child_out, $child_err) = _run_ykpers(@cmd);
-    push @cleanup, Scope::Guard->new(sub { kill $pid if defined $pid });
+    my $r = $self->_run_ykpers(\@cmd, {
+        (0 < $timeout ? (timeout => $timeout) : ()),
+        child_stdin                         => pad_pkcs7($challenge, 64),
+        terminate_on_parent_sudden_death    => 1,
+    });
 
-    # Set up an alarm [mostly] safely
-    my $prev_alarm = 0;
-    local $SIG{ALRM} = sub {
-        $prev_alarm -= $timeout;
+    if (my $t = $r->{timeout}) {
         throw 'Timed out while waiting for challenge response',
             command     => \@cmd,
             challenge   => $challenge,
-            timeout     => $timeout,
-    };
-    $prev_alarm = alarm $timeout if 0 < $timeout;
-    push @cleanup, Scope::Guard->new(sub { alarm($prev_alarm < 1 ? 1 : $prev_alarm) }) if $prev_alarm;
+            timeout     => $t,
+            result      => $r;
+    }
 
-    local $SIG{PIPE} = 'IGNORE';
-    binmode($child_in);
-    print $child_in pad_pkcs7($challenge, 64);
-    close($child_in);
+    my $exit_code = $r->{exit_code};
+    if ($exit_code != 0) {
+        my $err = $r->{stderr};
+        chomp $err;
+        my $yk_errno = _yk_errno($err);
+        throw 'Failed to receive challenge response: ' . ($err ? $err : ''),
+            error       => $err,
+            yk_errno    => $yk_errno || 0;
+    }
 
-    binmode($child_out);
-    binmode($child_err);
-    my $resp = do { local $/; <$child_out> };
-    my $err  = do { local $/; <$child_err> };
-    chomp($resp, $err);
-
-    waitpid($pid, 0);
-    undef $pid;
-    my $exit_status = $? >> 8;
-    alarm 0;
-
-    my $yk_errno = _yk_errno($err);
-    $exit_status == 0 or throw 'Failed to receive challenge response: ' . ($err ? $err : ''),
-        error       => $err,
-        yk_errno    => $yk_errno || 0;
-
-    $resp =~ /^[A-Fa-f0-9]+$/ or throw 'Unexpected response from challenge', response => $resp;
+    my $resp = $r->{stdout};
+    chomp $resp;
+    $resp =~ /^[A-Fa-f0-9]+$/ or throw 'Unexpected response from challenge', response => $resp, result => $r;
     $resp = pack('H*', $resp);
 
     # HMAC-SHA1 response is only 20 bytes
@@ -311,25 +298,20 @@ sub _get_yubikey_info {
     my $self = shift;
     my $device = shift;
 
+    my $timeout = $self->timeout;
     my @cmd = ($self->_program('ykinfo'), "-n$device", qw{-a});
 
     my $try = 0;
     TRY:
-    my ($pid, $child_in, $child_out, $child_err) = _run_ykpers(@cmd);
+    my $r = $self->_run_ykpers(\@cmd, {
+        (0 < $timeout ? (timeout => $timeout) : ()),
+        terminate_on_parent_sudden_death    => 1,
+    });
 
-    close($child_in);
-
-    local $SIG{PIPE} = 'IGNORE';
-    binmode($child_out);
-    binmode($child_err);
-    my $out = do { local $/; <$child_out> };
-    my $err = do { local $/; <$child_err> };
-    chomp $err;
-
-    waitpid($pid, 0);
-    my $exit_status = $? >> 8;
-
-    if ($exit_status != 0) {
+    my $exit_code = $r->{exit_code};
+    if ($exit_code != 0) {
+        my $err = $r->{stderr};
+        chomp $err;
         my $yk_errno = _yk_errno($err);
         return if $yk_errno == YK_ENOKEY;
         if ($yk_errno == YK_EWOULDBLOCK && ++$try <= 3) {
@@ -342,6 +324,8 @@ sub _get_yubikey_info {
         return;
     }
 
+    my $out = $r->{stdout};
+    chomp $out;
     if (!$out) {
         alert 'Failed to get YubiKey device info: no output';
         return;
@@ -373,13 +357,23 @@ sub _program {
 }
 
 sub _run_ykpers {
-    my ($child_err, $child_in, $child_out) = (gensym);
-    my $pid = eval { open3($child_in, $child_out, $child_err, @_) };
-    if (my $err = $@) {
-        throw "Failed to run $_[0] - Make sure you have the YubiKey Personalization Tool (CLI) package installed.\n",
+    my $self = shift;
+    my $ppid = $$;
+    my $r = eval { run_forked(@_) };
+    my $err = $@;
+    if ($$ != $ppid) {
+        # Work around IPC::Cmd bug where child can return from run_forked.
+        # https://rt.cpan.org/Public/Bug/Display.html?id=127372
+        require POSIX;
+        POSIX::_exit(0);
+    }
+    if ($err || ($r->{exit_code} == 0 && $r->{err_msg} eq '' && $r->{stdout} eq '' && $r->{stderr} eq '')) {
+        $err //= 'No output';
+        my $prog = $_[0][0];
+        throw "Failed to run $prog - Make sure you have the YubiKey Personalization Tool (CLI) package installed.\n",
             error => $err;
     }
-    return ($pid, $child_in, $child_out, $child_err);
+    return $r;
 }
 
 sub _yk_errno {
@@ -454,5 +448,12 @@ See L<https://keepassxc.org/docs/#faq-yubikey-howto> for more information.
 B<YubiKey> searches for these programs in the same way perl typically searches for executables (using the
 C<PATH> environment variable on many platforms). If the programs aren't installed normally, or if you want to
 override the default programs, these environment variables can be used.
+
+=head1 CAVEATS
+
+This doesn't work yet on Windows, probably. The hangup is pretty silly: IPC. Theoretically it would work if
+C<run_forked> from L<IPC::Cmd> worked in Windows, but it probably doesn't. I spent a couple hours applying
+various quirks to L<IPC::Open3> and L<IPC::Cmd> implementations but never quite got it to worked reliably
+without deadlocks. Maybe I'll revisit this later. Hit me up so I know if there's demand.
 
 =cut
