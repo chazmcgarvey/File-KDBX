@@ -6,9 +6,8 @@ use strict;
 use lib 't/lib';
 use TestCommon;
 
+use File::KDBX::Util qw(:all);
 use Test::More;
-
-BEGIN { use_ok('File::KDBX::Util', qw{empty format_uuid generate_uuid nonempty pad_pkcs7 snakify uuid}) }
 
 can_ok('File::KDBX::Util', qw{
     assert_64bit

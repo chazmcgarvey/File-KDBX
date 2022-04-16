@@ -26,6 +26,8 @@ my $PLACEHOLDER_MAX_DEPTH = 10;
 my %PLACEHOLDERS;
 my %STANDARD_STRINGS = map { $_ => 1 } qw(Title UserName Password URL Notes);
 
+sub _parent_container { 'entries' }
+
 =attr uuid
 
 128-bit UUID identifying the entry within the database.
@@ -252,8 +254,6 @@ sub init {
     return $self;
 }
 
-sub label { shift->title(@_) }
-
 ##############################################################################
 
 =method string
@@ -269,10 +269,11 @@ structure. For example:
 
     $string = {
         value   => 'Password',
-        protect => true,
+        protect => true,    # optional
     };
 
-Every string should have a value and these optional flags which might exist:
+Every string should have a value (but might be C<undef> due to memory protection) and these optional flags
+which might exist:
 
 =for :list
 * C<protect> - Whether or not the string value should be memory-protected.
@@ -281,10 +282,6 @@ Every string should have a value and these optional flags which might exist:
 
 sub string {
     my $self = shift;
-    # use Data::Dumper;
-    # $self->{strings} = shift if @_ == 1 && is_plain_hashref($_[0]);
-    # return $self->{strings} //= {} if !@_;
-
     my %args = @_     == 2 ? (key => shift, value => shift)
              : @_ % 2 == 1 ? (key => shift, @_) : @_;
 
@@ -459,6 +456,11 @@ sub binary_value {
     my $self = shift;
     my $binary = $self->binary_novivify(@_) // return undef;
     return $binary->{value};
+}
+
+sub auto_type_enabled {
+    my $entry = shift;
+    # TODO
 }
 
 ##############################################################################
@@ -738,7 +740,10 @@ sub size {
 
 sub history {
     my $self = shift;
-    return [map { __PACKAGE__->wrap($_, $self->kdbx) } @{$self->{history} || []}];
+    my $entries = $self->{history} //= [];
+    # FIXME - Looping through entries on each access is too expensive.
+    @$entries = map { $self->_wrap_entry($_, $self->kdbx) } @$entries;
+    return $entries;
 }
 
 =method history_size
@@ -759,7 +764,7 @@ sub history_size {
     $entry->prune_history(%options);
 
 Remove as many older historical entries as necessary to get under the database limits. The limits are taken
-from the database or can be specified with C<%options>:
+from the associated database (if any) or can be overridden with C<%options>:
 
 =for :list
 * C<max_items> - Maximum number of historical entries to keep (default: 10, no limit: -1)
@@ -795,7 +800,7 @@ sub prune_history {
 sub add_history {
     my $self = shift;
     delete $_->{history} for @_;
-    push @{$self->{history} //= []}, @_;
+    push @{$self->{history} //= []}, map { $self->_wrap_entry($_) } @_;
 }
 
 ##############################################################################
@@ -813,7 +818,7 @@ sub _commit {
     $self->last_modification_time(gmtime);
 }
 
-sub TO_JSON { +{%{$_[0]}} }
+sub label { shift->expanded_title(@_) }
 
 1;
 __END__
@@ -840,14 +845,14 @@ the attributes to see what's available.
 
 =head2 Placeholders
 
-Entry strings and auto-type key sequences can have placeholders or template tags that can be replaced by other
+Entry string and auto-type key sequences can have placeholders or template tags that can be replaced by other
 values. Placeholders can appear like C<{PLACEHOLDER}>. For example, a B<URL> string might have a value of
 C<http://example.com?user={USERNAME}>. C<{USERNAME}> is a placeholder for the value of the B<UserName> string
 of the same entry. If the C<UserName> string had a value of "batman", the B<URL> string would expand to
 C<http://example.com?user=batman>.
 
-Some placeholders take an argument, where the argument follows the tag after a colon. The syntax for this is
-C<{PLACEHOLDER:ARGUMENT}>.
+Some placeholders take an argument, where the argument follows the tag after a colon but before the closing
+brace, like C<{PLACEHOLDER:ARGUMENT}>.
 
 Placeholders are documented in the L<KeePass Help Center|https://keepass.info/help/base/placeholders.html>.
 This software supports many (but not all) of the placeholders documented there.
@@ -872,7 +877,7 @@ This software supports many (but not all) of the placeholders documented there.
 * ☑ C<{URL:RMVSCM}> / C<{URL:WITHOUTSCHEME}>
 * ☑ C<{S:Name}> - Custom string where C<Name> is the name or key of the string
 * ☑ C<{UUID}> - Identifier (32 hexidecimal characters)
-* ☑ C<{HMACOTP}> - Generate an HMAC-based one-time password
+* ☑ C<{HMACOTP}> - Generate an HMAC-based one-time password (its counter B<will> be incremented)
 * ☑ C<{TIMEOTP}> - Generate a time-based one-time password
 * ☑ C<{GROUP_NOTES}> - Notes of the parent group
 * ☑ C<{GROUP_PATH}> - Full path of the parent group

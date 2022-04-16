@@ -7,12 +7,11 @@ use lib 't/lib';
 use TestCommon;
 
 use Crypt::Misc 0.029 qw(decode_b64 encode_b64);
+use File::KDBX::Cipher;
 use File::KDBX::Constants qw(CIPHER_UUID_AES256);
 use IO::Handle;
+use PerlIO::via::File::KDBX::Crypt;
 use Test::More;
-
-BEGIN { use_ok 'File::KDBX::Cipher' }
-BEGIN { use_ok 'PerlIO::via::File::KDBX::Crypt' }
 
 subtest 'Round-trip block stream' => sub {
     plan tests => 3;

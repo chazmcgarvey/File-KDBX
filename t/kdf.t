@@ -7,9 +7,8 @@ use lib 't/lib';
 use TestCommon;
 
 use File::KDBX::Constants qw(:kdf);
+use File::KDBX::KDF;
 use Test::More;
-
-BEGIN { use_ok('File::KDBX::KDF') }
 
 subtest 'AES KDF' => sub {
     my $kdf1 = File::KDBX::KDF->new(uuid => KDF_UUID_AES, seed => "\1" x 32, rounds => 10);

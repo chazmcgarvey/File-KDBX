@@ -107,12 +107,13 @@ sub STORABLE_freeze {
 
     my $copy = {%$self};
 
-    return '', $copy, $KEYS{refaddr($self)}, $SAFE{refaddr($self)};
+    return '', $copy, $KEYS{refaddr($self)} // (), $SAFE{refaddr($self)} // ();
 }
 
 sub STORABLE_thaw {
     my $self    = shift;
     my $cloning = shift;
+    shift;
     my $clone   = shift;
     my $key     = shift;
     my $safe    = shift;
@@ -120,6 +121,10 @@ sub STORABLE_thaw {
     @$self{keys %$clone} = values %$clone;
     $KEYS{refaddr($self)} = $key;
     $SAFE{refaddr($self)} = $safe;
+
+    for my $object (@{$self->all_groups}, @{$self->all_entries(history => 1)}) {
+        $object->kdbx($self);
+    }
 }
 
 ##############################################################################
@@ -456,7 +461,7 @@ sub minimum_version {
     return KDBX_VERSION_4_1 if any {
         nonempty $_->previous_parent_group || (defined $_->quality_check && !$_->quality_check) ||
         any { nonempty $_->{last_modification_time} } values %{$_->custom_data}
-    } @{$self->all_entries};
+    } @{$self->all_entries(history => 1)};
 
     return KDBX_VERSION_4_0 if $self->kdf->uuid ne KDF_UUID_AES;
 
@@ -464,7 +469,7 @@ sub minimum_version {
 
     return KDBX_VERSION_4_0 if any {
         nonempty $_->custom_data
-    } @{$self->all_groups}, @{$self->all_entries};
+    } @{$self->all_groups}, @{$self->all_entries(history => 1)};
 
     return KDBX_VERSION_3_1;
 }
@@ -473,6 +478,14 @@ sub minimum_version {
 
 =method add_group
 
+    $kdbx->add_group($group, %options);
+    $kdbx->add_group(%group_attributes, %options);
+
+Add a group to a database. This is equivalent to identifying a parent group and calling
+L<File::KDBX::Group/add_group> on the parent group, forwarding the arguments. Available options:
+
+=for :list
+* C<group> (aka C<parent>) - Group (object or group UUID) to add the group to (default: root group)
 
 =cut
 
@@ -481,16 +494,15 @@ sub add_group {
     my $group   = @_ % 2 == 1 ? shift : undef;
     my %args    = @_;
 
+    # find the right group to add the group to
     my $parent = delete $args{group} // delete $args{parent} // $self->root;
     ($parent) = $self->find_groups({uuid => $parent}) if !ref $parent;
+    $parent or throw 'Invalid group';
 
-    $group = $self->_group($group // [%args]);
-    $group->uuid;
-
-    return $parent->add_group($group);
+    return $parent->add_group(defined $group ? $group : (), %args, kdbx => $self);
 }
 
-sub _group {
+sub _wrap_group {
     my $self  = shift;
     my $group = shift;
     require File::KDBX::Group;
@@ -519,20 +531,20 @@ replace the root group, you are essentially replacing the entire database conten
 sub root {
     my $self = shift;
     if (@_) {
-        $self->{root} = $self->_group(@_);
+        $self->{root} = $self->_wrap_group(@_);
         $self->{root}->kdbx($self);
     }
     $self->{root} //= $self->_implicit_root;
-    return $self->_group($self->{root});
+    return $self->_wrap_group($self->{root});
 }
 
 sub _kpx_groups {
     my $self = shift;
     return [] if !$self->{root};
-    return $self->_is_implicit_root ? $self->root->groups : [$self->root];
+    return $self->_has_implicit_root ? $self->root->groups : [$self->root];
 }
 
-sub _is_implicit_root {
+sub _has_implicit_root {
     my $self = shift;
     my $root = $self->root;
     my $temp = __PACKAGE__->_implicit_root;
@@ -561,36 +573,6 @@ sub _implicit_root {
     );
 }
 
-=method group_level
-
-    $level = $kdbx->group_level($group);
-    $level = $kdbx->group_level($group_uuid);
-
-Determine the depth/level of a group. The root group is level 0, its direct children are level 1, etc.
-
-=cut
-
-sub group_level {
-    my $self    = shift;
-    my $group   = $self->_group(shift);
-    my $uuid    = !is_ref($group) ? $group : $group->uuid; # FIXME can't check if it's a UUID after running
-    # through _group
-    return _group_level($uuid, $self->root, 0);
-}
-
-sub _group_level {
-    my ($uuid, $base, $level) = @_;
-
-    return $level if $uuid eq $base->{uuid};
-
-    for my $subgroup (@{$base->{groups} || []}) {
-        my $result = _group_level($uuid, $subgroup, $level + 1);
-        return $result if 0 <= $result;
-    }
-
-    return -1;
-}
-
 =method all_groups
 
     \@groups = $kdbx->all_groups(%options);
@@ -610,7 +592,7 @@ sub all_groups {
     my %args = @_ % 2 == 0 ? @_ : (base => shift, @_);
     my $base = $args{base} // $self->root;
 
-    my @groups = $args{include_base} // 1 ? $self->_group($base) : ();
+    my @groups = $args{include_base} // 1 ? $self->_wrap_group($base) : ();
 
     for my $subgroup (@{$base->{groups} || []}) {
         my $more = $self->all_groups($subgroup);
@@ -635,17 +617,23 @@ the database structure.
 
 sub trace_lineage {
     my $self    = shift;
-    my $thing   = shift;
+    my $object  = shift;
+    return $object->lineage(@_);
+}
+
+sub _trace_lineage {
+    my $self    = shift;
+    my $object  = shift;
     my @lineage = @_;
 
     push @lineage, $self->root if !@lineage;
-    my $base = $lineage[-1];
+    my $base = $lineage[-1] or return [];
 
-    my $uuid = $thing->uuid;
+    my $uuid = $object->uuid;
     return \@lineage if any { $_->uuid eq $uuid } @{$base->groups || []}, @{$base->entries || []};
 
     for my $subgroup (@{$base->groups || []}) {
-        my $result = $self->trace_lineage($thing, @lineage, $subgroup);
+        my $result = $self->_trace_lineage($object, @lineage, $subgroup);
         return $result if $result;
     }
 }
@@ -680,6 +668,14 @@ sub remove {
 
 =method add_entry
 
+    $kdbx->add_entry($entry, %options);
+    $kdbx->add_entry(%entry_attributes, %options);
+
+Add a entry to a database. This is equivalent to identifying a parent group and calling
+L<File::KDBX::Group/add_entry> on the parent group, forwarding the arguments. Available options:
+
+=for :list
+* C<group> (aka C<parent>) - Group (object or group UUID) to add the entry to (default: root group)
 
 =cut
 
@@ -688,16 +684,15 @@ sub add_entry {
     my $entry   = @_ % 2 == 1 ? shift : undef;
     my %args    = @_;
 
+    # find the right group to add the entry to
     my $parent = delete $args{group} // delete $args{parent} // $self->root;
     ($parent) = $self->find_groups({uuid => $parent}) if !ref $parent;
+    $parent or throw 'Invalid group';
 
-    $entry = $self->_entry($entry // delete $args{entry} // [%args]);
-    $entry->uuid;
-
-    return $parent->add_entry($entry);
+    return $parent->add_entry(defined $entry ? $entry : (), %args, kdbx => $self);
 }
 
-sub _entry {
+sub _wrap_entry {
     my $self  = shift;
     my $entry = shift;
     require File::KDBX::Entry;
@@ -734,7 +729,7 @@ sub all_entries {
     my @entries;
     if ((!$search || $enable_searching) && (!$auto_type || $enable_auto_type)) {
         push @entries,
-            map { $self->_entry($_) }
+            map { $self->_wrap_entry($_) }
             grep { !$auto_type || $_->{auto_type}{enabled} }
             map { $_, $history ? @{$_->{history} || []} : () }
             @{$base->{entries} || []};
@@ -772,10 +767,10 @@ sub find_entries {
     my $query = shift or throw 'Must provide a query';
     my %args = @_;
     my %all_entries = (
-        base    => $args{base},
-        auto_type    => $args{auto_type},
-        search  => $args{search},
-        history => $args{history},
+        base        => $args{base},
+        auto_type   => $args{auto_type},
+        search      => $args{search},
+        history     => $args{history},
     );
     return @{search($self->all_entries(%all_entries), is_arrayref($query) ? @$query : $query)};
 }
@@ -1099,15 +1094,15 @@ our %PLACEHOLDERS = (
     'URL:PASSWORD'      => sub { (split_url($_[0]->url))[8] },
     'UUID'              => sub { local $_ = format_uuid($_[0]->uuid); s/-//g; $_ },
     'REF:'              => sub { $_[0]->kdbx->resolve_reference($_[1]) },
-    'INTERNETEXPLORER'  => sub { load_optional('File::Which'); File::Which::which('iexplore') },
-    'FIREFOX'           => sub { load_optional('File::Which'); File::Which::which('firefox') },
-    'GOOGLECHROME'      => sub { load_optional('File::Which'); File::Which::which('google-chrome') },
-    'OPERA'             => sub { load_optional('File::Which'); File::Which::which('opera') },
-    'SAFARI'            => sub { load_optional('File::Which'); File::Which::which('safari') },
+    'INTERNETEXPLORER'  => sub { load_optional('IPC::Cmd'); IPC::Cmd::can_run('iexplore') },
+    'FIREFOX'           => sub { load_optional('IPC::Cmd'); IPC::Cmd::can_run('firefox') },
+    'GOOGLECHROME'      => sub { load_optional('IPC::Cmd'); IPC::Cmd::can_run('google-chrome') },
+    'OPERA'             => sub { load_optional('IPC::Cmd'); IPC::Cmd::can_run('opera') },
+    'SAFARI'            => sub { load_optional('IPC::Cmd'); IPC::Cmd::can_run('safari') },
     'APPDIR'            => sub { load_optional('FindBin'); $FindBin::Bin },
-    'GROUP'             => sub { $_[0]->parent->name },
+    'GROUP'             => sub { my $p = $_[0]->parent; $p ? $p->name : undef },
     'GROUP_PATH'        => sub { $_[0]->path },
-    'GROUP_NOTES'       => sub { $_[0]->parent->notes },
+    'GROUP_NOTES'       => sub { my $p = $_[0]->parent; $p ? $p->notes : undef },
     # 'GROUP_SEL'
     # 'GROUP_SEL_PATH'
     # 'GROUP_SEL_NOTES'
@@ -1659,7 +1654,7 @@ sub TO_JSON { +{%{$_[0]}} }
 1;
 __END__
 
-=for Pod::Coverage TO_JSON
+=for Pod::Coverage STORABLE_freeze STORABLE_thaw TO_JSON
 
 =head1 SYNOPSIS
 

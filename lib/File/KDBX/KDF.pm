@@ -39,6 +39,14 @@ sub new {
     return $self->init(%args, %registration_args);
 }
 
+=method init
+
+    $kdf = $kdf->init(%attributes);
+
+Called by method to set attributes. You normally shouldn't call this.
+
+=cut
+
 sub init {
     my $self = shift;
     my %args = @_;

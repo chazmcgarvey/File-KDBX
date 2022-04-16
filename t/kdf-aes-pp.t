@@ -6,13 +6,11 @@ use strict;
 use lib 't/lib';
 use TestCommon;
 
+BEGIN { $ENV{PERL_FILE_KDBX_XS} = 0 }
+use File::KDBX::KDF;
+
 use File::KDBX::Constants qw(:kdf);
 use Test::More;
-
-BEGIN {
-    $ENV{PERL_FILE_KDBX_XS} = 0;
-    use_ok('File::KDBX::KDF');
-}
 
 my $kdf = File::KDBX::KDF->new(uuid => KDF_UUID_AES, seed => "\1" x 32, rounds => 10);
 

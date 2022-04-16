@@ -7,10 +7,9 @@ use strict;
 use lib 't/lib';
 use TestCommon;
 
+use File::KDBX::Safe;
 use Test::Deep;
 use Test::More;
-
-BEGIN { use_ok 'File::KDBX::Safe' }
 
 my $secret = 'secret';
 

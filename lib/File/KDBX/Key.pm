@@ -128,7 +128,7 @@ Get the raw encryption key. This is calculated based on the primitive(s). The C<
 challenge-response type keys and is ignored by other types.
 
 B<NOTE:> The raw key is sensitive information and so is memory-protected while not being accessed. If you
-access it, you should L<File::KDBX::Util/erase> it when you're done.
+access it, you should memzero or L<File::KDBX::Util/erase> it when you're done.
 
 =cut
 
@@ -156,7 +156,8 @@ sub _clear_raw_key {
 
     $key = $key->hide;
 
-Encrypt the raw key for L<File::KDBX/"Memory Protection>. Returns itself to allow method chaining.
+Put the raw key in L<File::KDBX/"Memory Protection">. Does nothing if the raw key is already in memory
+protection. Returns itself to allow method chaining.
 
 =cut
 
@@ -170,9 +171,8 @@ sub hide {
 
     $key = $key->show;
 
-Decrypt the raw key so it can be accessed. Returns itself to allow method chaining.
-
-You normally don't need to call this because L</raw_key> calls this implicitly.
+Bring the raw key out of memory protection. Does nothing if the raw key is already out of memory protection.
+Returns itself to allow method chaining.
 
 =cut
 
@@ -183,14 +183,15 @@ sub show {
     return $self;
 }
 
-sub is_hidden { !!$SAFE{refaddr($_[0])} }
+=method is_hidden
 
-# sub show_scoped {
-#     my $self = shift;
-#     require Scope::Guard;
-#     $self-
-#     return
-# }
+    $bool = $key->is_hidden;
+
+Get whether or not the key's raw secret is currently in memory protection.
+
+=cut
+
+sub is_hidden { !!$SAFE{refaddr($_[0])} }
 
 sub _safe     { $SAFE{refaddr($_[0])} }
 sub _new_safe { $SAFE{refaddr($_[0])} = File::KDBX::Safe->new }

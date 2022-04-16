@@ -8,9 +8,8 @@ use TestCommon qw(:no_warnings_test);
 
 use File::KDBX::Util qw(can_fork);
 use IO::Handle;
+use PerlIO::via::File::KDBX::HmacBlock;
 use Test::More;
-
-BEGIN { use_ok 'PerlIO::via::File::KDBX::HmacBlock' }
 
 my $KEY = "\x01" x 64;
 
@@ -30,22 +29,6 @@ my $KEY = "\x01" x 64;
 
     is $plaintext, $expected_plaintext, 'HMAC-block just a little bit';
 }
-
-subtest 'Error handling' => sub {
-    pipe(my $read, my $write) or die "pipe failed: $!\n";
-
-    PerlIO::via::File::KDBX::HmacBlock->push($read, key => $KEY);
-
-    print $write 'blah blah blah';
-    close($write) or die "close failed: $!";
-
-    is $read->error, 0, 'Read handle starts out fine';
-    my $data = do { local $/; <$read> };
-    is $read->error, 1, 'Read handle can enter and error state';
-
-    like $PerlIO::via::File::KDBX::HmacBlock::ERROR, qr/failed to read HMAC/i,
-        'Error object is available';
-};
 
 SKIP: {
     skip 'Tests require fork' if !can_fork;
@@ -71,5 +54,21 @@ SKIP: {
 
     waitpid($pid, 0) or die "wait failed: $!\n";
 }
+
+subtest 'Error handling' => sub {
+    pipe(my $read, my $write) or die "pipe failed: $!\n";
+
+    PerlIO::via::File::KDBX::HmacBlock->push($read, key => $KEY);
+
+    print $write 'blah blah blah';
+    close($write) or die "close failed: $!";
+
+    is $read->error, 0, 'Read handle starts out fine';
+    my $data = do { local $/; <$read> };
+    is $read->error, 1, 'Read handle can enter and error state';
+
+    like $PerlIO::via::File::KDBX::HmacBlock::ERROR, qr/failed to read HMAC/i,
+        'Error object is available';
+};
 
 done_testing;

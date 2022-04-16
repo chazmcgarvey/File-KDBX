@@ -6,11 +6,10 @@ use strict;
 use lib 't/lib';
 use TestCommon;
 
+use File::KDBX::Entry;
 use File::KDBX;
 use Test::Deep;
 use Test::More;
-
-BEGIN { use_ok 'File::KDBX::Entry' }
 
 subtest 'Construction' => sub {
     my $entry = File::KDBX::Entry->new(my $data = {username => 'foo'});
@@ -37,6 +36,7 @@ subtest 'Construction' => sub {
         custom_data => {},
         custom_icon_uuid => undef,
         foreground_color => "",
+        history => [],
         icon_id => "Password",
         override_url => "",
         previous_parent_group => undef,

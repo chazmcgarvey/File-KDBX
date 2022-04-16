@@ -6,10 +6,9 @@ use strict;
 use lib 't/lib';
 use TestCommon;
 
+use File::KDBX::Error;
 use File::KDBX;
 use Test::More;
-
-BEGIN { use_ok 'File::KDBX::Error' }
 
 subtest 'Errors' => sub {
     my $error = exception {

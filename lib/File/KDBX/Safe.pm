@@ -52,9 +52,9 @@ sub DESTROY { !in_global_destruction and $_[0]->unlock }
 
 =method clear
 
-    $safe->clear;
+    $safe = $safe->clear;
 
-Clear a safe, removing all store contents permanently.
+Clear a safe, removing all store contents permanently. Returns itself to allow method chaining.
 
 =cut
 
@@ -66,14 +66,14 @@ sub clear {
     return $self;
 }
 
+=method lock
+
 =method add
 
     $safe = $safe->lock(@strings);
     $safe = $safe->lock(\@strings);
 
-Add strings to be encrypted.
-
-Alias: C<lock>
+Add one or more strings to the memory protection stream. Returns itself to allow method chaining.
 
 =cut
 
@@ -126,18 +126,22 @@ sub add {
     return $self;
 }
 
+=method lock_protected
+
 =method add_protected
 
-    $safe = $safe->add_protected(@strings);
-    $safe = $safe->add_protected(\@strings);
+    $safe = $safe->lock_protected(@strings);
+    $safe = $safe->lock_protected(\@strings);
 
-Add strings that are already encrypted.
+Add strings that are already encrypted. Returns itself to allow method chaining.
 
-B<WARNING:> You must add already-encrypted strings in the order in which they were original encrypted or they
-will not decrypt correctly. You almost certainly do not want to add both unprotected and protected strings to
-a safe.
+B<WARNING:> The cipher must be the same as was used to originally encrypt the strings. You must add
+already-encrypted strings in the order in which they were original encrypted or they will not decrypt
+correctly. You almost certainly do not want to add both unprotected and protected strings to a safe.
 
 =cut
+
+sub lock_protected { shift->add_protected(@_) }
 
 sub add_protected {
     my $self = shift;
@@ -174,7 +178,9 @@ sub add_protected {
 
     $safe = $safe->unlock;
 
-Decrypt all the strings. Each stored string is set to its original value.
+Decrypt all the strings. Each stored string is set to its original value, potentially overwriting any value
+that might have been set after locking the string (so you probably should avoid modification to strings while
+locked). The safe is implicitly cleared. Returns itself to allow method chaining.
 
 This happens automatically when the safe is garbage-collected.
 
@@ -230,6 +236,8 @@ sub unlock {
 
 Peek into the safe at a particular string without decrypting the whole safe. A copy of the string is returned,
 and in order to ensure integrity of the memory protection you should erase the copy when you're done.
+
+Returns C<undef> if the given C<$string> is not in memory protection.
 
 =cut
 

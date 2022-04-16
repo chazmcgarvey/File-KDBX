@@ -119,13 +119,11 @@ sub can_fork {
     return 1;
 }
 
-=func clone_nomagic
+=func clone
 
-    $clone = clone_nomagic($thing);
+    $clone = clone($thing);
 
-Clone deeply without keeping [most of] the magic.
-
-B<NOTE:> At the moment the implementation is naïve and won't respond well to nontrivial data.
+Clone deeply. This is an unadorned alias to L<Storable> C<dclone>.
 
 =cut
 
@@ -133,6 +131,17 @@ sub clone {
     require Storable;
     goto &Storable::dclone;
 }
+
+=func clone_nomagic
+
+    $clone = clone_nomagic($thing);
+
+Clone deeply without keeping [most of] the magic.
+
+B<WARNING:> At the moment the implementation is naïve and won't respond well to nontrivial data or recursive
+structures.
+
+=cut
 
 sub clone_nomagic {
     my $thing = shift;
@@ -153,7 +162,8 @@ sub clone_nomagic {
 
 =func dumper
 
-    $str = dumper $struct;
+    $str = dumper $thing;
+    dumper $thing;  # in void context, prints to STDERR
 
 Like L<Data::Dumper> but slightly terser in some cases relevent to L<File::KDBX>.
 
@@ -241,7 +251,7 @@ sub erase {
     for (@_) {
         if (!is_ref($_)) {
             next if !defined $_ || readonly $_;
-            if (USE_COWREFCNT()) {
+            if (_USE_COWREFCNT()) {
                 my $cowrefcnt = B::COW::cowrefcnt($_);
                 goto FREE_NONREF if defined $cowrefcnt && 1 < $cowrefcnt;
             }
@@ -258,7 +268,7 @@ sub erase {
         }
         elsif (is_scalarref($_)) {
             next if !defined $$_ || readonly $$_;
-            if (USE_COWREFCNT()) {
+            if (_USE_COWREFCNT()) {
                 my $cowrefcnt = B::COW::cowrefcnt($$_);
                 goto FREE_REF if defined $cowrefcnt && 1 < $cowrefcnt;
             }
@@ -391,7 +401,7 @@ sub gunzip {
     return $out;
 }
 
-=func gunzip
+=func gzip
 
     $zipped = gzip($string);
 
@@ -762,6 +772,14 @@ sub uri_escape_utf8 {
     return $_;
 }
 
+=func uri_unescape_utf8
+
+    $string = uri_unescape_utf8($string);
+
+Inverse of L</uri_escape_utf8>.
+
+=cut
+
 sub uri_unescape_utf8 {
     local $_ = shift // return;
     s/\%([A-Fa-f0-9]{2})/chr(hex($1))/;
@@ -789,7 +807,7 @@ sub uuid {
 
 BEGIN {
     my $use_cowrefcnt = eval { require B::COW; 1 };
-    *USE_COWREFCNT = $use_cowrefcnt ? sub() { 1 } : sub() { 0 };
+    *_USE_COWREFCNT = $use_cowrefcnt ? sub() { 1 } : sub() { 0 };
 }
 
 ### --------------------------------------------------------------------------

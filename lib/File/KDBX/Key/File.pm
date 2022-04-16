@@ -5,7 +5,8 @@ use warnings;
 use strict;
 
 use Crypt::Digest qw(digest_data);
-use Crypt::Misc 0.029 qw(decode_b64);
+use Crypt::Misc 0.029 qw(decode_b64 encode_b64);
+use Crypt::PRNG qw(random_bytes);
 use File::KDBX::Constants qw(:key_file);
 use File::KDBX::Error;
 use File::KDBX::Util qw(:erase trim);
@@ -18,7 +19,20 @@ use parent 'File::KDBX::Key';
 
 our $VERSION = '999.999'; # VERSION
 
-sub init {
+=method load
+
+    $key = $key->load($filepath);
+    $key = $key->load(\$string);
+    $key = $key->load($fh);
+    $key = $key->load(*IO);
+
+Load a key file.
+
+=cut
+
+sub init { shift->load(@_) }
+
+sub load {
     my $self = shift;
     my $primitive = shift // throw 'Missing key primitive';
 
@@ -119,6 +133,57 @@ Get the filepath to the key file, if known.
 
 sub filepath { $_[0]->{filepath} }
 
+=method save
+
+    $key->save;
+    $key->save(%options);
+
+Write a key file. Available options:
+
+=for :list
+* C<type> - Type of key file (default: value of L</type>, or C<KEY_FILE_TYPE_XML>)
+* C<verson> - Version of key file (default: value of L</version>, or 2)
+* C<filepath> - Where to save the file (default: value of L</filepath>)
+* C<fh> - IO handle to write to (overrides C<filepath>, one of which must be defined)
+* C<raw_key> - Raw key (default: value of L</raw_key>)
+
+=cut
+
+sub save {
+    my $self = shift;
+    my %args = @_;
+
+    my @cleanup;
+    my $raw_key = $args{raw_key} // $self->raw_key // random_bytes(32);
+    push @cleanup, erase_scoped $raw_key;
+    length($raw_key) == 32 or throw 'Raw key must be exactly 256 bits (32 bytes)', length => length($raw_key);
+
+    my $type        = $args{type} // $self->type // KEY_FILE_TYPE_XML;
+    my $version     = $args{version} // $self->version // 2;
+    my $filepath    = $args{filepath} // $self->filepath;
+    my $fh          = $args{fh};
+
+    if (!openhandle($fh)) {
+        $filepath or throw 'Must specify where to safe the key file to';
+        open($fh, '>:raw', $filepath) or throw "Failed to open key file for writing: $!";
+    }
+
+    if ($type == KEY_FILE_TYPE_XML) {
+        $self->_save_xml($fh, $raw_key, $version);
+    }
+    elsif ($type == KEY_FILE_TYPE_BINARY) {
+        print $fh $raw_key;
+    }
+    elsif ($type == KEY_FILE_TYPE_HEX) {
+        my $hex = uc(unpack('H*', $raw_key));
+        push @cleanup, erase_scoped $hex;
+        print $fh $hex;
+    }
+    else {
+        throw "Cannot save $type key file (invalid type)", type => $type;
+    }
+}
+
 ##############################################################################
 
 sub _load_xml {
@@ -166,7 +231,7 @@ sub _load_xml {
         $$out = pack('H*', $data);
         $hash = pack('H*', $hash);
         my $got_hash = digest_data('SHA256', $$out);
-        $hash eq substr($got_hash, 0, 4)
+        $hash eq substr($got_hash, 0, length($hash))
             or throw 'Checksum mismatch', got => $got_hash, expected => $hash;
         return (KEY_FILE_TYPE_XML, $version);
     }
@@ -174,4 +239,83 @@ sub _load_xml {
     throw 'Unexpected data in key file', version => $version, data => $data;
 }
 
+sub _save_xml {
+    my $self    = shift;
+    my $fh      = shift;
+    my $raw_key = shift;
+    my $version = shift // 2;
+
+    my @cleanup;
+
+    my $dom = XML::LibXML::Document->new('1.0', 'UTF-8');
+    my $doc = XML::LibXML::Element->new('KeyFile');
+    $dom->setDocumentElement($doc);
+    my $meta_node = XML::LibXML::Element->new('Meta');
+    $doc->appendChild($meta_node);
+    my $version_node = XML::LibXML::Element->new('Version');
+    $version_node->appendText(sprintf('%.1f', $version));
+    $meta_node->appendChild($version_node);
+    my $key_node = XML::LibXML::Element->new('Key');
+    $doc->appendChild($key_node);
+    my $data_node = XML::LibXML::Element->new('Data');
+    $key_node->appendChild($data_node);
+
+    if (int($version) == 1) {
+        my $b64 = encode_b64($raw_key);
+        push @cleanup, erase_scoped $b64;
+        $data_node->appendText($b64);
+    }
+    elsif (int($version) == 2) {
+        my @hex = unpack('(H8)8', $raw_key);
+        my $hex = uc(sprintf("\n      %s\n      %s\n    ", join(' ', @hex[0..3]), join(' ', @hex[4..7])));
+        push @cleanup, erase_scoped $hex, @hex;
+        $data_node->appendText($hex);
+        my $hash = digest_data('SHA256', $raw_key);
+        substr($hash, 4) = '';
+        $hash = uc(unpack('H*', $hash));
+        $data_node->setAttribute('Hash', $hash);
+    }
+    else {
+        throw 'Failed to save unsupported key file version', version => $version;
+    }
+
+    $dom->toFH($fh, 1);
+}
+
 1;
+__END__
+
+=head1 SYNOPSIS
+
+    use File::KDBX::Constants qw(:key_file);
+    use File::KDBX::Key::File;
+
+    ### Create a key file:
+
+    my $key = File::KDBX::Key::File->new(
+        filepath    => 'path/to/file.keyx',
+        type        => KEY_FILE_TYPE_XML,   # optional
+        version     => 2,                   # optional
+        raw_key     => $raw_key,            # optional - leave undefined to generate a random key
+    );
+    $key->save;
+
+    ### Use a key file:
+
+    my $key2 = File::KDBX::Key::File->new('path/to/file.keyx');
+    # OR
+    my $key2 = File::KDBX::Key::File->new(\$secret);
+    # OR
+    my $key2 = File::KDBX::Key::File->new($fh); # or *IO
+
+=head1 DESCRIPTION
+
+A file key (or "key file") is the type of key where the secret is a file. The secret is either the file
+contents or is generated based on the file contents. In order to lock and unlock a KDBX database with a key
+file, the same file must be presented. The database cannot be opened without the file.
+
+Inherets methods and attributes from L<File::KDBX::Key>.
+
+There are multiple types of key files supported. See L</type>. This module can read and write key files.
+
+=cut

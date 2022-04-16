@@ -10,7 +10,7 @@ use File::KDBX::Error;
 use File::KDBX::Util qw(generate_uuid);
 use List::Util qw(sum0);
 use Ref::Util qw(is_ref);
-use Scalar::Util qw(blessed);
+use Scalar::Util qw(blessed refaddr);
 use Time::Piece;
 use boolean;
 use namespace::clean;
@@ -18,6 +18,8 @@ use namespace::clean;
 use parent 'File::KDBX::Object';
 
 our $VERSION = '999.999'; # VERSION
+
+sub _parent_container { 'groups' }
 
 my @ATTRS = qw(uuid custom_data entries groups);
 my %ATTRS = (
@@ -82,61 +84,126 @@ sub uuid {
     $self->{uuid};
 }
 
-sub label { shift->name(@_) }
+##############################################################################
 
 sub entries {
     my $self = shift;
     my $entries = $self->{entries} //= [];
-    require File::KDBX::Entry;
-    @$entries = map { File::KDBX::Entry->wrap($_, $self->kdbx) } @$entries;
+    # FIXME - Looping through entries on each access is too expensive.
+    @$entries = map { $self->_wrap_entry($_, $self->kdbx) } @$entries;
     return $entries;
-}
-
-sub groups {
-    my $self = shift;
-    my $groups = $self->{groups} //= [];
-    @$groups = map { File::KDBX::Group->wrap($_, $self->kdbx) } @$groups;
-    return $groups;
-}
-
-sub _kpx_groups { shift->groups(@_) }
-
-sub all_groups {
-    my $self = shift;
-    return $self->kdbx->all_groups(base => $self, include_base => false);
 }
 
 sub all_entries {
     my $self = shift;
+    # FIXME - shouldn't have to delegate to the database to get this
     return $self->kdbx->all_entries(base => $self);
 }
 
-sub _group {
-    my $self  = shift;
-    my $group = shift;
-    return File::KDBX::Group->wrap($group, $self);
-}
+=method add_entry
 
-sub _entry {
-    my $self  = shift;
-    my $entry = shift;
-    require File::KDBX::Entry;
-    return File::KDBX::Entry->wrap($entry, $self);
-}
+    $entry = $group->add_entry($entry);
+    $entry = $group->add_entry(%entry_attributes);
+
+Add an entry to a group. If C<$entry> already has a parent group, it will be removed from that group before
+being added to C<$group>.
+
+=cut
 
 sub add_entry {
     my $self = shift;
-    my $entry = shift;
-    push @{$self->{entries} ||= []}, $entry;
-    return $entry;
+    my $entry   = @_ % 2 == 1 ? shift : undef;
+    my %args    = @_;
+
+    my $kdbx = delete $args{kdbx} // eval { $self->kdbx };
+
+    $entry = $self->_wrap_entry($entry // [%args]);
+    $entry->uuid;
+    $entry->kdbx($kdbx) if $kdbx;
+
+    push @{$self->{entries} ||= []}, $entry->remove;
+    return $entry->_set_group($self);
 }
 
-sub add_group {
+sub remove_entry {
     my $self = shift;
-    my $group = shift;
-    push @{$self->{groups} ||= []}, $group;
-    return $group;
+    my $uuid = is_ref($_[0]) ? $self->_wrap_entry(shift)->uuid : shift;
+    my $objects = $self->{entries};
+    for (my $i = 0; $i < @$objects; ++$i) {
+        my $o = $objects->[$i];
+        next if $uuid ne $o->uuid;
+        return splice @$objects, $i, 1;
+        $o->_set_group(undef);
+        return @$objects, $i, 1;
+    }
 }
+
+##############################################################################
+
+sub groups {
+    my $self = shift;
+    my $groups = $self->{groups} //= [];
+    # FIXME - Looping through groups on each access is too expensive.
+    @$groups = map { $self->_wrap_group($_, $self->kdbx) } @$groups;
+    return $groups;
+}
+
+sub all_groups {
+    my $self = shift;
+    # FIXME - shouldn't have to delegate to the database to get this
+    return $self->kdbx->all_groups(base => $self, include_base => false);
+}
+
+sub _kpx_groups { shift->groups(@_) }
+
+=method add_group
+
+    $new_group = $group->add_group($new_group);
+    $new_group = $group->add_group(%group_attributes);
+
+Add a group to a group. If C<$new_group> already has a parent group, it will be removed from that group before
+being added to C<$group>.
+
+=cut
+
+sub add_group {
+    my $self    = shift;
+    my $group   = @_ % 2 == 1 ? shift : undef;
+    my %args    = @_;
+
+    my $kdbx = delete $args{kdbx} // eval { $self->kdbx };
+
+    $group = $self->_wrap_group($group // [%args]);
+    $group->uuid;
+    $group->kdbx($kdbx) if $kdbx;
+
+    push @{$self->{groups} ||= []}, $group->remove;
+    return $group->_set_group($self);
+}
+
+sub remove_group {
+    my $self = shift;
+    my $uuid = is_ref($_[0]) ? $self->_wrap_group(shift)->uuid : shift;
+    my $objects = $self->{groups};
+    for (my $i = 0; $i < @$objects; ++$i) {
+        my $o = $objects->[$i];
+        next if $uuid ne $o->uuid;
+        $o->_set_group(undef);
+        return splice @$objects, $i, 1;
+    }
+}
+
+##############################################################################
+
+=method add_object
+
+    $new_entry = $group->add_object($new_entry);
+    $new_group = $group->add_object($new_group);
+
+Add an object (either a L<File::KDBX::Entry> or a L<File::KDBX::Group>) to a group. This is the generic
+equivalent of the object forms of L</add_entry> and L</add_group>.
+
+=cut
 
 sub add_object {
     my $self = shift;
@@ -149,6 +216,16 @@ sub add_object {
     }
 }
 
+=method remove_object
+
+    $group->remove_object($entry);
+    $group->remove_object($group);
+
+Remove an object (either a L<File::KDBX::Entry> or a L<File::KDBX::Group>) from a group. This is the generic
+equivalent of the object forms of L</remove_entry> and L</remove_group>.
+
+=cut
+
 sub remove_object {
     my $self = shift;
     my $object = shift;
@@ -158,42 +235,76 @@ sub remove_object {
     return $self->remove_group($object, @_) || $self->remove_entry($object, @_);
 }
 
-sub remove_group {
+##############################################################################
+
+=method is_root
+
+    $bool = $group->is_root;
+
+Determine if a group is the root group of its associated database.
+
+=cut
+
+sub is_root {
     my $self = shift;
-    my $uuid = is_ref($_[0]) ? $self->_group(shift)->uuid : shift;
-    my $objects = $self->{groups};
-    for (my $i = 0; $i < @$objects; ++$i) {
-        my $o = $objects->[$i];
-        next if $uuid ne $o->uuid;
-        return splice @$objects, $i, 1;
-    }
+    my $kdbx = eval { $self->kdbx } or return;
+    return refaddr($kdbx->root) == refaddr($self);
 }
 
-sub remove_entry {
-    my $self = shift;
-    my $uuid = is_ref($_[0]) ? $self->_entry(shift)->uuid : shift;
-    my $objects = $self->{entries};
-    for (my $i = 0; $i < @$objects; ++$i) {
-        my $o = $objects->[$i];
-        next if $uuid ne $o->uuid;
-        return splice @$objects, $i, 1;
-    }
-}
+=method path
+
+    $string = $group->path;
+
+Get a string representation of a group's lineage. This is used as the substitution value for the
+C<{GROUP_PATH}> placeholder. See L<File::KDBX::Entry/Placeholders>.
+
+For a root group, the path is simply the name of the group. For deeper groups, the path is a period-separated
+sequence of group names between the root group and C<$group>, including C<$group> but I<not> the root group.
+In other words, paths of deeper groups leave the root group name out.
+
+    Database
+    -> Root         # path is "Root"
+       -> Foo       # path is "Foo"
+          -> Bar    # path is "Foo.Bar"
+
+Yeah, it doesn't make much sense to me, either, but this matches the behavior of KeePass.
+
+=cut
 
 sub path {
     my $self = shift;
-    my $lineage = $self->kdbx->trace_lineage($self) or return;
-    return join('.', map { $_->name } @$lineage);
+    return $self->name if $self->is_root;
+    my $lineage = $self->lineage or return;
+    my @parts = (@$lineage, $self);
+    shift @parts;
+    return join('.', map { $_->name } @parts);
 }
+
+=method size
+
+    $size = $group->size;
+
+Get the size (in bytes) of a group, including the size of all subroups and entries, if any.
+
+=cut
 
 sub size {
     my $self = shift;
     return sum0 map { $_->size } @{$self->groups}, @{$self->entries};
 }
 
-sub level { $_[0]->kdbx->group_level($_[0]) }
+=method depth
 
-sub TO_JSON { +{%{$_[0]}} }
+    $depth = $group->depth;
+
+Get the depth of a group within a database. The root group is at depth 0, its direct children are at depth 1,
+etc. A group not in a database tree structure returns a depth of -1.
+
+=cut
+
+sub depth { $_[0]->is_root ? 0 : (scalar @{$_[0]->lineage || []} || -1) }
+
+sub label { shift->name(@_) }
 
 1;
 __END__

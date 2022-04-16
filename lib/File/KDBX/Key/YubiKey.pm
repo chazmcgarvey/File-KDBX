@@ -430,6 +430,8 @@ A L<File::KDBX::Key::YubiKey> is a type of challenge-response key. This module f
 challenge-response implementation, so this might not work at all with incompatible challenge-response
 implementations (e.g. KeeChallenge).
 
+Inherets methods and attributes from L<File::KDBX::Key::ChallengeResponse>.
+
 To use this type of key to secure a L<File::KDBX> database, you also need to install the
 L<YubiKey Personalization Tool (CLI)|https://developers.yubico.com/yubikey-personalization/> and configure at
 least one of the slots on your YubiKey for HMAC-SHA1 challenge response mode. You can use the YubiKey
@@ -441,9 +443,9 @@ See L<https://keepassxc.org/docs/#faq-yubikey-howto> for more information.
 
 =for :list
 * C<YKCHALRESP> - Path to the L<ykchalresp(1)> program
-* C<YKCHALRESP_FLAGS> - Extra arguments to the B<ykchalresp> program
 * C<YKINFO> - Path to the L<ykinfo(1)> program
-* C<YKINFO_FLAGS> - Extra arguments to the B<ykinfo> program
+* C<YKCHALRESP_FLAGS> - Extra arguments to the B<ykchalresp(1)> program
+* C<YKINFO_FLAGS> - Extra arguments to the B<ykinfo(1)> program
 
 B<YubiKey> searches for these programs in the same way perl typically searches for executables (using the
 C<PATH> environment variable on many platforms). If the programs aren't installed normally, or if you want to
@@ -455,5 +457,8 @@ This doesn't work yet on Windows, probably. The hangup is pretty silly: IPC. The
 C<run_forked> from L<IPC::Cmd> worked in Windows, but it probably doesn't. I spent a couple hours applying
 various quirks to L<IPC::Open3> and L<IPC::Cmd> implementations but never quite got it to worked reliably
 without deadlocks. Maybe I'll revisit this later. Hit me up so I know if there's demand.
+
+It would also be possible to implement this is an XS module that incorporated ykcore, using libusb-1 which
+would probably make it more portable with Windows. Perhaps if I get around to it.
 
 =cut

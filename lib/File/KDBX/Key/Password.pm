@@ -24,3 +24,18 @@ sub init {
 }
 
 1;
+__END__
+
+=head1 SYNOPSIS
+
+    use File::KDBX::Key::Password;
+
+    my $key = File::KDBX::Key::Password->new($password);
+
+=head1 DESCRIPTION
+
+A password key is as simple as it sounds. It's just a password or passphrase.
+
+Inherets methods and attributes from L<File::KDBX::Key>.
+
+=cut

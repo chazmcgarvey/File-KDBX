@@ -14,13 +14,14 @@ use namespace::clean;
 our $VERSION = '999.999'; # VERSION
 
 my %KDBX;
+my %PARENT;
 
 =method new
 
-    $object = File::KDBX::Entry->new;
-    $object = File::KDBX::Entry->new(%attributes);
-    $object = File::KDBX::Entry->new($data);
-    $object = File::KDBX::Entry->new($data, $kdbx);
+    $object = File::KDBX::Object->new;
+    $object = File::KDBX::Object->new(%attributes);
+    $object = File::KDBX::Object->new(\%data);
+    $object = File::KDBX::Object->new(\%data, $kdbx);
 
 Construct a new KDBX object.
 
@@ -32,11 +33,11 @@ and:
 
     File::KDBX::Entry->new({username => 'iambatman'}); # WRONG
 
-In the first, an empty entry is first created and then initialized with whatever I<attributes> are given. In
-the second, a hashref is blessed and essentially becomes the entry. The significance is that the hashref
-key-value pairs will remain as-is so the structure is expected to adhere to the shape of a raw B<Entry>,
-whereas with the first the attributes will set the structure in the correct way (just like using the entry
-object accessors / getters / setters).
+In the first, an empty object is first created and then initialized with whatever I<attributes> are given. In
+the second, a hashref is blessed and essentially becomes the object. The significance is that the hashref
+key-value pairs will remain as-is so the structure is expected to adhere to the shape of a raw B<Object>
+(which varies based on the type of object), whereas with the first the attributes will set the structure in
+the correct way (just like using the object accessors / getters / setters).
 
 The second example isn't I<generally> wrong -- this type of construction is supported for a reason, to allow
 for working with KDBX objects at a low level -- but it is wrong in this specific case only because
@@ -75,6 +76,16 @@ sub new {
     return $self;
 }
 
+sub _set_default_attributes { die 'Not implemented' }
+
+=method init
+
+    $object = $object->init(%attributes);
+
+Called by the constructor to set attributes. You normally should not call this.
+
+=cut
+
 sub init {
     my $self = shift;
     my %args = @_;
@@ -92,6 +103,7 @@ sub DESTROY {
     return if in_global_destruction;
     my $self = shift;
     delete $KDBX{refaddr($self)};
+    delete $PARENT{refaddr($self)};
 }
 
 =method wrap
@@ -103,8 +115,8 @@ Ensure that a KDBX object is blessed.
 =cut
 
 sub wrap {
-    my $class = shift;
-    my $object = shift;
+    my $class   = shift;
+    my $object  = shift;
     return $object if blessed $object && $object->isa($class);
     return $class->new(@_, @$object) if is_arrayref($object);
     return $class->new($object, @_);
@@ -116,33 +128,32 @@ sub wrap {
     $object->label($label);
 
 Get or set the object's label, a text string that can act as a non-unique identifier. For an entry, the label
-is its title. For a group, the label is its name.
+is its title string. For a group, the label is its name.
 
 =cut
 
-sub label { die "Not implemented" }
+sub label { die 'Not implemented' }
 
 =method clone
 
     $object_copy = $object->clone;
     $object_copy = File::KDBX::Object->new($object);
 
-Make a clone of an entry. By default the clone is indeed an exact copy that is associated with the same
-database but not actually included in the object tree (i.e. it has no parent), but some options are allowed to
+Make a clone of an object. By default the clone is indeed an exact copy that is associated with the same
+database but not actually included in the object tree (i.e. it has no parent). Some options are allowed to
 get different effects:
 
 =for :list
-* C<new_uuid> - Set a new UUID; value can be the new UUID, truthy to generate a random UUID, or falsy to keep
-    the original UUID (default: same value as C<parent>)
-* C<parent> - If set, add the copy to the same parent (default: false)
-* C<relabel> - If set, change the name or title of the copy to "C<$original_title> - Copy".
-* C<entries> - Toggle whether or not to copy child entries, if any (default: true)
-* C<groups> - Toggle whether or not to copy child groups, if any (default: true)
-* C<history> - Toggle whether or not to copy the entry history, if any (default: true)
-* C<reference_password> - Toggle whether or not cloned entry's Password string should be set to a reference to
-    their original entry's Password string.
-* C<reference_username> - Toggle whether or not cloned entry's UserName string should be set to a reference to
-    their original entry's UserName string.
+* C<new_uuid> - If set, generate a new UUID for the copy (default: false)
+* C<parent> - If set, add the copy to the same parent group, if any (default: false)
+* C<relabel> - If set, append " - Copy" to the object's title or name (default: false)
+* C<entries> - If set, copy child entries, if any (default: true)
+* C<groups> - If set, copy child groups, if any (default: true)
+* C<history> - If set, copy entry history, if any (default: true)
+* C<reference_password> - Toggle whether or not cloned entry's Password string should be set as a field
+    reference to the original entry's Password string (default: false)
+* C<reference_username> - Toggle whether or not cloned entry's UserName string should be set as a field
+    reference to the original entry's UserName string (default: false)
 
 =cut
 
@@ -194,8 +205,8 @@ sub STORABLE_thaw {
     my $kdbx = $KDBX{$addr};
     $self->kdbx($kdbx) if $kdbx;
 
-    if ($self->{uuid}) {
-        if (($CLONE{reference_password} || $CLONE{reference_username}) && $self->isa('File::KDBX::Entry')) {
+    if (defined $self->{uuid}) {
+        if (($CLONE{reference_password} || $CLONE{reference_username}) && $self->can('strings')) {
             my $uuid = format_uuid($self->{uuid});
             my $clone_obj = do {
                 local $CLONE{new_uuid}              = 0;
@@ -204,7 +215,7 @@ sub STORABLE_thaw {
                 local $CLONE{history}               = 1;
                 local $CLONE{reference_password}    = 0;
                 local $CLONE{reference_username}    = 0;
-                bless Storable::dclone({%$clone}),  'File::KDBX::Entry';
+                bless Storable::dclone({%$clone}), 'File::KDBX::Entry';
             };
             my $txn = $self->begin_work($clone_obj);
             if ($CLONE{reference_password}) {
@@ -262,21 +273,78 @@ sub id { format_uuid(shift->uuid, @_) }
 
 =method group
 
+=method parent
+
     $group = $object->group;
+    # OR equivalently
+    $group = $object->parent;
 
 Get the parent group to which an object belongs or C<undef> if it belongs to no group.
-
-Alias: C<parent>
 
 =cut
 
 sub group {
     my $self = shift;
-    my $lineage = $self->kdbx->trace_lineage($self) or return;
-    return pop @$lineage;
+    my $addr = refaddr($self);
+    if (my $group = $PARENT{$addr}) {
+        my $method = $self->_parent_container;
+        for my $object (@{$group->$method}) {
+            return $group if $addr == refaddr($object);
+        }
+        delete $PARENT{$addr};
+    }
+    # always get lineage from root to leaf because the other way requires parent, so it would be recursive
+    my $lineage = $self->kdbx->_trace_lineage($self) or return;
+    my $group = pop @$lineage or return;
+    $PARENT{$addr} = $group; weaken $PARENT{$addr};
+    return $group;
 }
 
 sub parent { shift->group(@_) }
+
+sub _set_group {
+    my $self = shift;
+    if (my $parent = shift) {
+        $PARENT{refaddr($self)} = $parent;
+    }
+    else {
+        delete $PARENT{refaddr($self)};
+    }
+    return $self;
+}
+
+### Name of the parent attribute expected to contain the object
+sub _parent_container { die 'Not implemented' }
+
+=method lineage
+
+    \@lineage = $object->lineage;
+    \@lineage = $object->lineage($base_group);
+
+Get the direct line of ancestors from C<$base_group> (default: the root group) to an object. The lineage
+includes the base group but I<not> the target object. Returns C<undef> if the target is not in the database
+structure. Returns an empty arrayref is the object itself is a root group.
+
+=cut
+
+sub lineage {
+    my $self = shift;
+    my $base = shift;
+
+    my $base_addr = $base ? refaddr($base) : 0;
+
+    # try leaf to root
+    my @path;
+    my $o = $self;
+    while ($o = $o->parent) {
+        unshift @path, $o;
+        last if $base_addr == refaddr($o);
+    }
+    return \@path if @path && ($base_addr == refaddr($path[0]) || $path[0]->is_root);
+
+    # try root to leaf
+    return $self->kdbx->_trace_lineage($self, $base);
+}
 
 =method remove
 
@@ -401,8 +469,26 @@ sub custom_data_value {
     return $data->{value};
 }
 
+sub _wrap_group {
+    my $self  = shift;
+    my $group = shift;
+    require File::KDBX::Group;
+    return File::KDBX::Group->wrap($group, $KDBX{refaddr($self)});
+}
+
+sub _wrap_entry {
+    my $self  = shift;
+    my $entry = shift;
+    require File::KDBX::Entry;
+    return File::KDBX::Entry->wrap($entry, $KDBX{refaddr($self)});
+}
+
+sub TO_JSON { +{%{$_[0]}} }
+
 1;
 __END__
+
+=for Pod::Coverage STORABLE_freeze STORABLE_thaw TO_JSON
 
 =head1 DESCRIPTION
 

@@ -23,7 +23,7 @@ BEGIN {
 
     my $use_fork = 1;
     $use_fork = 0 if $ENV{NO_FORK} || !can_fork;
-    *USE_FORK = $use_fork ? sub() { 1 } : sub() { 0 };
+    *_USE_FORK = $use_fork ? sub() { 1 } : sub() { 0 };
 }
 
 sub init {
@@ -58,7 +58,7 @@ sub _transform {
 
     my ($key_l, $key_r) = unpack('(a16)2', $key);
 
-    goto NO_FORK if !USE_FORK || $rounds < $FORK_OPTIMIZATION_THRESHOLD;
+    goto NO_FORK if !_USE_FORK || $rounds < $FORK_OPTIMIZATION_THRESHOLD;
     {
         my $pid = open(my $read, '-|') // do { alert "fork failed: $!"; goto NO_FORK };
         if ($pid == 0) { # child
@@ -73,7 +73,8 @@ sub _transform {
         return digest_data('SHA256', $l, $r);
     }
 
-    # FIXME: This used to work but now it crashes frequently. threads are discouraged anyway
+    # FIXME: This used to work but now it crashes frequently. Threads are now discouraged anyway, but it might
+    # be nice if this was available for no-fork platforms.
     # if ($ENV{THREADS} && eval 'use threads; 1') {
     #     my $l = threads->create(\&_transform_half, $key_l, $seed, $rounds);
     #     my $r = _transform_half($key_r, $seed, $rounds);

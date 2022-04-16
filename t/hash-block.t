@@ -8,9 +8,8 @@ use TestCommon qw(:no_warnings_test);
 
 use File::KDBX::Util qw(can_fork);
 use IO::Handle;
+use PerlIO::via::File::KDBX::HashBlock;
 use Test::More;
-
-BEGIN { use_ok 'PerlIO::via::File::KDBX::HashBlock' }
 
 {
     my $expected_plaintext = 'Tiny food from Spain!';
@@ -28,22 +27,6 @@ BEGIN { use_ok 'PerlIO::via::File::KDBX::HashBlock' }
 
     is $plaintext, $expected_plaintext, 'Hash-block just a little bit';
 }
-
-subtest 'Error handling' => sub {
-    pipe(my $read, my $write) or die "pipe failed: $!\n";
-
-    PerlIO::via::File::KDBX::HashBlock->push($read);
-
-    print $write 'blah blah blah';
-    close($write) or die "close failed: $!";
-
-    is $read->error, 0, 'Read handle starts out fine';
-    my $data = do { local $/; <$read> };
-    is $read->error, 1, 'Read handle can enter and error state';
-
-    like $PerlIO::via::File::KDBX::HashBlock::ERROR, qr/invalid block index/i,
-        'Error object is available';
-};
 
 SKIP: {
     skip 'Tests require fork' if !can_fork;
@@ -69,5 +52,21 @@ SKIP: {
 
     waitpid($pid, 0) or die "wait failed: $!\n";
 }
+
+subtest 'Error handling' => sub {
+    pipe(my $read, my $write) or die "pipe failed: $!\n";
+
+    PerlIO::via::File::KDBX::HashBlock->push($read);
+
+    print $write 'blah blah blah';
+    close($write) or die "close failed: $!";
+
+    is $read->error, 0, 'Read handle starts out fine';
+    my $data = do { local $/; <$read> };
+    is $read->error, 1, 'Read handle can enter and error state';
+
+    like $PerlIO::via::File::KDBX::HashBlock::ERROR, qr/invalid block index/i,
+        'Error object is available';
+};
 
 done_testing;
