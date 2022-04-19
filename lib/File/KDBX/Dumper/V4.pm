@@ -9,10 +9,10 @@ use Crypt::Mac::HMAC qw(hmac);
 use Encode qw(encode is_utf8);
 use File::KDBX::Constants qw(:header :inner_header :compression :kdf :variant_map);
 use File::KDBX::Error;
+use File::KDBX::IO::Crypt;
+use File::KDBX::IO::HmacBlock;
 use File::KDBX::Util qw(:empty assert_64bit erase_scoped);
 use IO::Handle;
-use PerlIO::via::File::KDBX::Crypt;
-use PerlIO::via::File::KDBX::HmacBlock;
 use Scalar::Util qw(looks_like_number);
 use boolean qw(:all);
 use namespace::clean;
@@ -233,18 +233,22 @@ sub _write_body {
     $kdbx->key($key);
 
     # HMAC-block the rest of the stream
-    PerlIO::via::File::KDBX::HmacBlock->push($fh, $hmac_key);
+    $fh = File::KDBX::IO::HmacBlock->new($fh, key => $hmac_key);
 
     my $final_key = digest_data('SHA256', $kdbx->headers->{master_seed}, $transformed_key);
     push @cleanup, erase_scoped $final_key;
 
     my $cipher = $kdbx->cipher(key => $final_key);
-    PerlIO::via::File::KDBX::Crypt->push($fh, $cipher);
+    $fh = File::KDBX::IO::Crypt->new($fh, cipher => $cipher);
 
     my $compress = $kdbx->headers->{+HEADER_COMPRESSION_FLAGS};
     if ($compress == COMPRESSION_GZIP) {
-        require PerlIO::via::File::KDBX::Compression;
-        PerlIO::via::File::KDBX::Compression->push($fh);
+        require IO::Compress::Gzip;
+        $fh = IO::Compress::Gzip->new($fh,
+            -Level => IO::Compress::Gzip::Z_BEST_COMPRESSION(),
+            -TextFlag => 1,
+        ) or throw "Failed to initialize compression library: $IO::Compress::Gzip::GzipError",
+            error => $IO::Compress::Gzip::GzipError;
     }
     elsif ($compress != COMPRESSION_NONE) {
         throw "Unsupported compression ($compress)\n", compression_flags => $compress;
@@ -254,9 +258,6 @@ sub _write_body {
 
     local $self->{compress_datetimes} = 1;
     $self->_write_inner_body($fh, $header_hash);
-
-    binmode($fh, ':pop') if $compress;
-    binmode($fh, ':pop:pop');
 }
 
 sub _write_inner_headers {

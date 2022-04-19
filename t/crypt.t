@@ -9,8 +9,8 @@ use TestCommon;
 use Crypt::Misc 0.029 qw(decode_b64 encode_b64);
 use File::KDBX::Cipher;
 use File::KDBX::Constants qw(CIPHER_UUID_AES256);
+use File::KDBX::IO::Crypt;
 use IO::Handle;
-use PerlIO::via::File::KDBX::Crypt;
 use Test::More;
 
 subtest 'Round-trip block stream' => sub {
@@ -32,20 +32,21 @@ subtest 'Round-trip cipher stream' => sub {
 };
 
 subtest 'Error handling' => sub {
-    plan tests => 3;
+    plan tests => 4;
 
     my $block_cipher = File::KDBX::Cipher->new(uuid => CIPHER_UUID_AES256, key => 0x01 x 32, iv => 0x01 x 16);
     pipe(my $read, my $write) or die "pipe failed: $!";
-    PerlIO::via::File::KDBX::Crypt->push($read, $block_cipher);
+    $read = File::KDBX::IO::Crypt->new($read, cipher => $block_cipher);
 
-    print $write 'blah blah blah!!';
+    print $write "blah blah blah!\1";
     close($write) or die "close failed: $!";
 
-    is $read->error, 0, 'Read handle starts out fine';
+    is $read->error, '', 'Read handle starts out fine';
     my $plaintext = do { local $/; <$read> };
-    is $read->error, 1, 'Read handle can enter and error state';
+    is $plaintext, '', 'Read can fail';
+    is $read->error, 1, 'Read handle can enter an error state';
 
-    like $PerlIO::via::File::KDBX::Crypt::ERROR, qr/fatal/i,
+    like $File::KDBX::IO::Crypt::ERROR, qr/fatal/i,
         'Error object is available';
 };
 
@@ -58,10 +59,9 @@ sub test_roundtrip {
     my $expected_ciphertext = shift;
 
     pipe(my $read, my $write) or die "pipe failed: $!";
-    PerlIO::via::File::KDBX::Crypt->push($write, $cipher);
+    $write = File::KDBX::IO::Crypt->new($write, cipher => $cipher);
 
     print $write $expected_plaintext;
-    binmode($write, ':pop');    # finish stream
     close($write) or die "close failed: $!";
 
     my $ciphertext = do { local $/; <$read> };
@@ -73,7 +73,7 @@ sub test_roundtrip {
     is $ciphertext, $ciphertext2, 'Same result';
 
     open(my $fh, '<', \$ciphertext) or die "open failed: $!\n";
-    PerlIO::via::File::KDBX::Crypt->push($fh, $cipher);
+    $fh = File::KDBX::IO::Crypt->new($fh, cipher => $cipher);
 
     my $plaintext = do { local $/; <$fh> };
     close($fh);

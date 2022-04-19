@@ -169,36 +169,29 @@ sub dump_file {
     my $key = delete $args{key};
     $args{kdbx} //= $self->kdbx;
 
-    # require File::Temp;
-    # # my ($fh, $filepath_temp) = eval { File::Temp::tempfile("${filepath}-XXXXXX", CLEANUP => 1) };
-    # my $fh = eval { File::Temp->new(TEMPLATE => "${filepath}-XXXXXX", CLEANUP => 1) };
-    # my $filepath_temp = $fh->filename;
-    # if (!$fh or my $err = $@) {
-    #     $err //= 'Unknown error';
-    #     throw sprintf('Open file failed (%s): %s', $filepath_temp, $err),
-    #         error       => $err,
-    #         filepath    => $filepath_temp;
-    # }
-    open(my $fh, '>:raw', $filepath) or die "open failed ($filepath): $!";
-    binmode($fh);
-    # $fh->autoflush(1);
+    require File::Temp;
+    my ($fh, $filepath_temp) = eval { File::Temp::tempfile("${filepath}-XXXXXX", CLEANUP => 1) };
+    if (!$fh or my $err = $@) {
+        $err //= 'Unknown error';
+        throw sprintf('Open file failed (%s): %s', $filepath_temp, $err),
+            error       => $err,
+            filepath    => $filepath_temp;
+    }
+    $fh->autoflush(1);
 
     $self = $self->new if !ref $self;
     $self->init(%args, fh => $fh, filepath => $filepath);
-    # binmode($fh);
     $self->_dump($fh, $key);
+    close($fh);
 
-    # binmode($fh, ':raw');
-    # close($fh);
+    my ($file_mode, $file_uid, $file_gid) = (stat($filepath))[2, 4, 5];
 
-    # my ($file_mode, $file_uid, $file_gid) = (stat($filepath))[2, 4, 5];
-
-    # my $mode = $args{mode} // $file_mode // do { my $m = umask; defined $m ? oct(666) &~ $m : undef };
-    # my $uid  = $args{uid}  // $file_uid  // -1;
-    # my $gid  = $args{gid}  // $file_gid  // -1;
-    # chmod($mode, $filepath_temp) if defined $mode;
-    # chown($uid, $gid, $filepath_temp);
-    # rename($filepath_temp, $filepath) or throw "Failed to write file ($filepath): $!", filepath => $filepath;
+    my $mode = $args{mode} // $file_mode // do { my $m = umask; defined $m ? oct(666) &~ $m : undef };
+    my $uid  = $args{uid}  // $file_uid  // -1;
+    my $gid  = $args{gid}  // $file_gid  // -1;
+    chmod($mode, $filepath_temp) if defined $mode;
+    chown($uid, $gid, $filepath_temp);
+    rename($filepath_temp, $filepath) or throw "Failed to write file ($filepath): $!", filepath => $filepath;
 
     return $self;
 }

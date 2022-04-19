@@ -20,9 +20,9 @@ use Crypt::Digest qw(digest_data);
 use Encode qw(decode);
 use File::KDBX::Constants qw(:header :compression :kdf);
 use File::KDBX::Error;
+use File::KDBX::IO::Crypt;
+use File::KDBX::IO::HashBlock;
 use File::KDBX::Util qw(:io assert_64bit erase_scoped);
-use PerlIO::via::File::KDBX::Crypt;
-use PerlIO::via::File::KDBX::HashBlock;
 use namespace::clean;
 
 use parent 'File::KDBX::Loader';
@@ -127,7 +127,7 @@ sub _read_body {
     push @cleanup, erase_scoped $final_key;
 
     my $cipher = $kdbx->cipher(key => $final_key);
-    PerlIO::via::File::KDBX::Crypt->push($fh, $cipher);
+    $fh = File::KDBX::IO::Crypt->new($fh, cipher => $cipher);
 
     read_all $fh, my $start_bytes, 32 or throw 'Failed to read starting bytes';
 
@@ -138,21 +138,20 @@ sub _read_body {
 
     $kdbx->key($key);
 
-    PerlIO::via::File::KDBX::HashBlock->push($fh);
+    $fh = File::KDBX::IO::HashBlock->new($fh);
 
     my $compress = $kdbx->headers->{+HEADER_COMPRESSION_FLAGS};
     if ($compress == COMPRESSION_GZIP) {
-        require PerlIO::via::File::KDBX::Compression;
-        PerlIO::via::File::KDBX::Compression->push($fh);
+        require IO::Uncompress::Gunzip;
+        $fh = IO::Uncompress::Gunzip->new($fh)
+            or throw "Failed to initialize compression library: $IO::Uncompress::Gunzip::GunzipError",
+                error => $IO::Uncompress::Gunzip::GunzipError;
     }
     elsif ($compress != COMPRESSION_NONE) {
         throw "Unsupported compression ($compress)\n", compression_flags => $compress;
     }
 
     $self->_read_inner_body($fh);
-
-    binmode($fh, ':pop') if $compress;
-    binmode($fh, ':pop:pop');
 
     if (my $header_hash = $kdbx->meta->{header_hash}) {
         my $got_header_hash = digest_data('SHA256', $header_data);

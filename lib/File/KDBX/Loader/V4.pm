@@ -23,8 +23,8 @@ use Encode qw(decode);
 use File::KDBX::Constants qw(:header :inner_header :variant_map :compression);
 use File::KDBX::Error;
 use File::KDBX::Util qw(:io assert_64bit erase_scoped);
-use PerlIO::via::File::KDBX::Crypt;
-use PerlIO::via::File::KDBX::HmacBlock;
+use File::KDBX::IO::Crypt;
+use File::KDBX::IO::HmacBlock;
 use boolean;
 use namespace::clean;
 
@@ -188,18 +188,20 @@ sub _read_body {
 
     $kdbx->key($key);
 
-    PerlIO::via::File::KDBX::HmacBlock->push($fh, $hmac_key);
+    $fh = File::KDBX::IO::HmacBlock->new($fh, key => $hmac_key);
 
     my $final_key = digest_data('SHA256', $kdbx->headers->{master_seed}, $transformed_key);
     push @cleanup, erase_scoped $final_key;
 
     my $cipher = $kdbx->cipher(key => $final_key);
-    PerlIO::via::File::KDBX::Crypt->push($fh, $cipher);
+    $fh = File::KDBX::IO::Crypt->new($fh, cipher => $cipher);
 
     my $compress = $kdbx->headers->{+HEADER_COMPRESSION_FLAGS};
     if ($compress == COMPRESSION_GZIP) {
-        require PerlIO::via::File::KDBX::Compression;
-        PerlIO::via::File::KDBX::Compression->push($fh);
+        require IO::Uncompress::Gunzip;
+        $fh = IO::Uncompress::Gunzip->new($fh)
+            or throw "Failed to initialize compression library: $IO::Uncompress::Gunzip::GunzipError",
+                error => $IO::Uncompress::Gunzip::GunzipError;
     }
     elsif ($compress != COMPRESSION_NONE) {
         throw "Unsupported compression ($compress)\n", compression_flags => $compress;
@@ -207,9 +209,6 @@ sub _read_body {
 
     $self->_read_inner_headers($fh);
     $self->_read_inner_body($fh);
-
-    binmode($fh, ':pop') if $compress;
-    binmode($fh, ':pop:pop');
 }
 
 sub _read_inner_headers {
@@ -226,30 +225,34 @@ sub _read_inner_header {
     my $fh   = shift;
     my $kdbx = $self->kdbx;
 
-    read_all $fh, my $buf, 1 or throw 'Expected inner header type';
-    my ($type) = unpack('C', $buf);
-
-    read_all $fh, $buf, 4 or throw 'Expected inner header size', type => $type;
-    my ($size) = unpack('L<', $buf);
+    read_all $fh, my $buf, 5 or throw 'Expected inner header type and size',
+        compression_error   => $IO::Uncompress::Gunzip::GunzipError,
+        crypt_error         => $File::KDBX::IO::Crypt::ERROR,
+        hmac_error          => $File::KDBX::IO::HmacBLock::ERROR;
+    my ($type, $size) = unpack('C L<', $buf);
 
     my $val;
     if (0 < $size) {
         read_all $fh, $val, $size or throw 'Expected inner header value', type => $type, size => $size;
     }
 
-    $type = KDBX_INNER_HEADER($type);
+    my $dualtype = KDBX_INNER_HEADER($type);
 
-    if ($type == INNER_HEADER_END) {
+    if (!defined $dualtype) {
+        alert "Ignoring unknown inner header type ($type)", type => $type, size => $size, value => $val;
+        return wantarray ? ($type => $val) : $type;
+    }
+    elsif ($dualtype == INNER_HEADER_END) {
         # nothing
     }
-    elsif ($type == INNER_HEADER_INNER_RANDOM_STREAM_ID) {
+    elsif ($dualtype == INNER_HEADER_INNER_RANDOM_STREAM_ID) {
         $val = unpack('L<', $val);
-        $kdbx->inner_headers->{$type} = $val;
+        $kdbx->inner_headers->{$dualtype} = $val;
     }
-    elsif ($type == INNER_HEADER_INNER_RANDOM_STREAM_KEY) {
-        $kdbx->inner_headers->{$type} = $val;
+    elsif ($dualtype == INNER_HEADER_INNER_RANDOM_STREAM_KEY) {
+        $kdbx->inner_headers->{$dualtype} = $val;
     }
-    elsif ($type == INNER_HEADER_BINARY) {
+    elsif ($dualtype == INNER_HEADER_BINARY) {
         my $msize = $size - 1;
         my ($flags, $data) = unpack("C a$msize", $val);
         my $id = scalar keys %{$kdbx->binaries};
@@ -259,7 +262,7 @@ sub _read_inner_header {
         };
     }
 
-    return wantarray ? ($type => $val) : $type;
+    return wantarray ? ($dualtype => $val) : $dualtype;
 }
 
 1;

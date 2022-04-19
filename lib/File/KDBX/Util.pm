@@ -18,6 +18,7 @@ our $VERSION = '999.999'; # VERSION
 
 our %EXPORT_TAGS = (
     assert      => [qw(assert_64bit)],
+    bool        => [qw(FALSE TRUE)],
     clone       => [qw(clone clone_nomagic)],
     crypt       => [qw(pad_pkcs7)],
     debug       => [qw(dumper)],
@@ -818,6 +819,17 @@ sub uuid {
     return pack('H32', $_);
 
 }
+
+=func FALSE
+
+=func TRUE
+
+Constants appropriate for use as return values in functions claiming to return true or false.
+
+=cut
+
+sub FALSE() { !1 }
+sub TRUE()  {  1 }
 
 BEGIN {
     my $use_cowrefcnt = eval { require B::COW; 1 };

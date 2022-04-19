@@ -133,25 +133,25 @@ Get the initialization vector.
 
 sub iv { $_[0]->{iv} }
 
-=attr default_iv_size
+=attr iv_size
 
-    $size = $cipher->default_iv_size;
+    $size = $cipher->iv_size;
 
-Get the default size of the initialization vector, in bytes.
+Get the expected size of the initialization vector, in bytes.
 
 =cut
 
-sub key_size { -1 }
+sub iv_size { 0 }
 
 =attr key_size
 
     $size = $cipher->key_size;
 
-Get the size the mode expects the key to be, in bytes.
+Get the size the mode or stream expects the key to be, in bytes.
 
 =cut
 
-sub iv_size { 0 }
+sub key_size { -1 }
 
 =attr block_size
 
