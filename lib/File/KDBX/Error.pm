@@ -15,7 +15,12 @@ our @EXPORT = qw(alert error throw);
 my $WARNINGS_CATEGORY;
 BEGIN {
     $WARNINGS_CATEGORY = 'File::KDBX';
-    warnings::register_categories($WARNINGS_CATEGORY) if warnings->can('register_categories');
+    if (warnings->can('register_categories')) {
+        warnings::register_categories($WARNINGS_CATEGORY);
+    }
+    else {
+        eval qq{package $WARNINGS_CATEGORY; use warnings::register; 1}; ## no critic ProhibitStringyEval
+    }
 }
 
 use overload '""' => 'to_string', cmp => '_cmp';

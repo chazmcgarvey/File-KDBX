@@ -366,7 +366,7 @@ if ($ENV{DEBUG_IO}) {
             my $indented_method = (' ' x $debug{level}) . $method;
             my $self = shift;
             print STDERR sprintf('%-20s -> %s (%s)', $indented_method, $self,
-                join(', ', map { defined ? substr($_, 0, 16) : 'undef' } @_)), "\n";
+                join(', ', map { defined $_ ? substr($_, 0, 16) : 'undef' } @_)), "\n";
             my $r = $orig->($self, @_) // 'undef';
             print STDERR sprintf('%-20s <- %s [%s]', $indented_method, $self, $r), "\n";
             return $r;

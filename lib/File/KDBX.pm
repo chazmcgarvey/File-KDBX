@@ -15,7 +15,6 @@ use Ref::Util qw(is_ref is_arrayref is_plain_hashref);
 use Scalar::Util qw(blessed refaddr);
 use Time::Piece;
 use boolean;
-use warnings::register;
 use namespace::clean;
 
 our $VERSION = '999.999'; # VERSION
