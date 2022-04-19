@@ -48,7 +48,7 @@ sub new {
     return $self;
 }
 
-sub DESTROY { !in_global_destruction and $_[0]->unlock }
+sub DESTROY { local ($., $@, $!, $^E, $?); !in_global_destruction and $_[0]->unlock }
 
 =method clear
 

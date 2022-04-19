@@ -152,6 +152,7 @@ sub _read_body {
     }
 
     $self->_read_inner_body($fh);
+    close($fh);
 
     if (my $header_hash = $kdbx->meta->{header_hash}) {
         my $got_header_hash = digest_data('SHA256', $header_data);

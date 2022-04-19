@@ -303,7 +303,17 @@ sub _read {
 
     my $headers = $self->_read_headers($fh);
 
-    $self->_read_body($fh, $key, "$magic$headers");
+    eval {
+        $self->_read_body($fh, $key, "$magic$headers");
+    };
+    if (my $err = $@) {
+        throw "Failed to load KDBX file: $err",
+            error               => $err,
+            compression_error   => $IO::Uncompress::Gunzip::GunzipError,
+            crypt_error         => $File::KDBX::IO::Crypt::ERROR,
+            hash_error          => $File::KDBX::IO::HashBLock::ERROR,
+            hmac_error          => $File::KDBX::IO::HmacBLock::ERROR;
+    }
 }
 
 sub _read_headers {
