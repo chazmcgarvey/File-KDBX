@@ -11,7 +11,7 @@ use File::KDBX::Constants qw(:header :inner_header :compression :kdf :variant_ma
 use File::KDBX::Error;
 use File::KDBX::IO::Crypt;
 use File::KDBX::IO::HmacBlock;
-use File::KDBX::Util qw(:empty assert_64bit erase_scoped);
+use File::KDBX::Util qw(:empty :load assert_64bit erase_scoped);
 use IO::Handle;
 use Scalar::Util qw(looks_like_number);
 use boolean qw(:all);
@@ -243,7 +243,7 @@ sub _write_body {
 
     my $compress = $kdbx->headers->{+HEADER_COMPRESSION_FLAGS};
     if ($compress == COMPRESSION_GZIP) {
-        require IO::Compress::Gzip;
+        load_optional('IO::Compress::Gzip');
         $fh = IO::Compress::Gzip->new($fh,
             -Level => IO::Compress::Gzip::Z_BEST_COMPRESSION(),
             -TextFlag => 1,

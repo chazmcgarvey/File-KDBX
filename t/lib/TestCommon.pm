@@ -6,7 +6,7 @@ use strict;
 use Data::Dumper;
 use File::KDBX::Constants qw(:magic :kdf);
 use File::KDBX::Util qw(can_fork dumper);
-use File::Spec::Functions qw(catfile);
+use File::Spec;
 use FindBin qw($Bin);
 use Test::Fatal;
 use Test::Deep;
@@ -36,7 +36,6 @@ sub import {
     # Just export a random assortment of things useful for testing.
     no strict 'refs';
     *{"${caller}::dumper"}      = \&File::KDBX::Util::dumper;
-    *{"${caller}::catfile"}     = \&File::Spec::Functions::catfile;
 
     *{"${caller}::exception"}   = \&Test::Fatal::exception;
     *{"${caller}::warning"}     = \&Test::Warnings::warning;
@@ -50,7 +49,7 @@ sub import {
 }
 
 sub testfile {
-    return catfile($Bin, 'files', @_);
+    return File::Spec->catfile($Bin, 'files', @_);
 }
 
 sub dump_test_deep_template {

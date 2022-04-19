@@ -82,6 +82,47 @@ my %OP_NEG = (
     '!~'    =>  '=~',
 );
 
+=func FALSE
+
+=func TRUE
+
+Constants appropriate for use as return values in functions claiming to return true or false.
+
+=cut
+
+sub FALSE() { !1 }
+sub TRUE()  {  1 }
+
+=func load_xs
+
+    $bool = load_xs();
+    $bool = load_xs($version);
+
+Attempt to load L<File::KDBX::XS>. Return truthy if C<XS> is loaded. If C<$version> is given, it will check
+that at least the given version is loaded.
+
+=cut
+
+sub load_xs {
+    my $version = shift;
+
+    goto IS_LOADED if File::KDBX->can('_XS_LOADED');
+
+    my $try_xs = 1;
+    $try_xs = 0 if $ENV{PERL_ONLY} || (exists $ENV{PERL_FILE_KDBX_XS} && !$ENV{PERL_FILE_KDBX_XS});
+
+    my $use_xs = 0;
+    $use_xs = eval { require File::KDBX::XS; 1 } if $try_xs;
+
+    *File::KDBX::_XS_LOADED = *File::KDBX::_XS_LOADED = $use_xs ? \&TRUE : \&FALSE;
+
+    IS_LOADED:
+    {
+        local $@;
+        return $version ? !!eval { File::KDBX::XS->VERSION($version); 1 } : File::KDBX::_XS_LOADED();
+    }
+}
+
 =func assert_64bit
 
     assert_64bit();
@@ -243,7 +284,17 @@ Overwrite the memory used by one or more string.
 
 =cut
 
-# use File::KDBX::XS;
+BEGIN {
+    if (load_xs) {
+        # loaded CowREFCNT
+    }
+    elsif (eval { require B::COW; 1 }) {
+        *CowREFCNT = \*B::COW::cowrefcnt;
+    }
+    else {
+        *CowREFCNT = sub { undef };
+    }
+}
 
 sub erase {
     # Only bother zeroing out memory if we have the last SvPV COW reference, otherwise we'll end up just
@@ -252,10 +303,8 @@ sub erase {
     for (@_) {
         if (!is_ref($_)) {
             next if !defined $_ || readonly $_;
-            if (_USE_COWREFCNT()) {
-                my $cowrefcnt = B::COW::cowrefcnt($_);
-                goto FREE_NONREF if defined $cowrefcnt && 1 < $cowrefcnt;
-            }
+            my $cowrefcnt = CowREFCNT($_);
+            goto FREE_NONREF if defined $cowrefcnt && 1 < $cowrefcnt;
             # if (__PACKAGE__->can('erase_xs')) {
             #     erase_xs($_);
             # }
@@ -269,10 +318,8 @@ sub erase {
         }
         elsif (is_scalarref($_)) {
             next if !defined $$_ || readonly $$_;
-            if (_USE_COWREFCNT()) {
-                my $cowrefcnt = B::COW::cowrefcnt($$_);
-                goto FREE_REF if defined $cowrefcnt && 1 < $cowrefcnt;
-            }
+            my $cowrefcnt = CowREFCNT($$_);
+            goto FREE_REF if defined $cowrefcnt && 1 < $cowrefcnt;
             # if (__PACKAGE__->can('erase_xs')) {
             #     erase_xs($$_);
             # }
@@ -466,34 +513,6 @@ sub load_optional {
         }
     }
     return wantarray ? @_ : $_[0];
-}
-
-=func load_xs
-
-    $bool = load_xs();
-    $bool = load_xs($version);
-
-Attempt to load L<File::KDBX::XS>. Return truthy if C<XS> is loaded. If C<$version> is given, it will check
-that at least the given version is loaded.
-
-=cut
-
-sub load_xs {
-    my $version = shift;
-
-    require File::KDBX;
-
-    my $has_xs = File::KDBX->can('XS_LOADED');
-    return $has_xs->() && ($version ? eval { File::KDBX::XS->VERSION($version); 1 } : 1) if $has_xs;
-
-    my $try_xs = 1;
-    $try_xs = 0 if $ENV{PERL_ONLY} || (exists $ENV{PERL_FILE_KDBX_XS} && !$ENV{PERL_FILE_KDBX_XS});
-
-    my $use_xs = 0;
-    $use_xs = try_load_optional('File::KDBX::XS') if $try_xs;
-
-    *File::KDBX::XS_LOADED = *File::KDBX::XS_LOADED = $use_xs ? sub() { 1 } : sub() { 0 };
-    return $version ? eval { File::KDBX::XS->VERSION($version); 1 } : 1;
 }
 
 =func memoize
@@ -818,22 +837,6 @@ sub uuid {
     /^[A-Fa-f0-9]{32}$/ or throw 'Must provide a formatted 128-bit UUID';
     return pack('H32', $_);
 
-}
-
-=func FALSE
-
-=func TRUE
-
-Constants appropriate for use as return values in functions claiming to return true or false.
-
-=cut
-
-sub FALSE() { !1 }
-sub TRUE()  {  1 }
-
-BEGIN {
-    my $use_cowrefcnt = eval { require B::COW; 1 };
-    *_USE_COWREFCNT = $use_cowrefcnt ? sub() { 1 } : sub() { 0 };
 }
 
 ### --------------------------------------------------------------------------

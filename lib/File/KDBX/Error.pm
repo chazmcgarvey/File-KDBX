@@ -70,7 +70,7 @@ passed will be forwarded to L</new> to create a new error object.
 This can be convenient for error handling when you're not sure what the exception is but you want to treat it
 as a B<File::KDBX::Error>. Example:
 
-    eval { .... };
+    eval { ... };
     if (my $error = error(@_)) {
         if ($error->type eq 'key.missing') {
             handle_missing_key($error);

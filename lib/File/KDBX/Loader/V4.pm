@@ -22,7 +22,7 @@ use Crypt::Mac::HMAC qw(hmac);
 use Encode qw(decode);
 use File::KDBX::Constants qw(:header :inner_header :variant_map :compression);
 use File::KDBX::Error;
-use File::KDBX::Util qw(:io assert_64bit erase_scoped);
+use File::KDBX::Util qw(:io :load assert_64bit erase_scoped);
 use File::KDBX::IO::Crypt;
 use File::KDBX::IO::HmacBlock;
 use boolean;
@@ -198,7 +198,7 @@ sub _read_body {
 
     my $compress = $kdbx->headers->{+HEADER_COMPRESSION_FLAGS};
     if ($compress == COMPRESSION_GZIP) {
-        require IO::Uncompress::Gunzip;
+        load_optional('IO::Uncompress::Gunzip');
         $fh = IO::Uncompress::Gunzip->new($fh)
             or throw "Failed to initialize compression library: $IO::Uncompress::Gunzip::GunzipError",
                 error => $IO::Uncompress::Gunzip::GunzipError;
