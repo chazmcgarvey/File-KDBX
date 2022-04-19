@@ -6,6 +6,7 @@ use strict;
 
 use Crypt::Digest qw(digest_data);
 use Crypt::Mac::HMAC qw(hmac);
+use Errno;
 use File::KDBX::Error;
 use File::KDBX::Util qw(:io assert_64bit);
 use namespace::clean;
@@ -54,12 +55,11 @@ sub PUSHED {
 
     %PUSHED_ARGS or throw 'Programmer error: Use PerlIO::via::File::KDBX::HmacBlock->push instead of binmode';
 
-    $ENV{DEBUG_STREAM} and print STDERR "PUSHED\t$class\n";
-    my $buf = '';
+    $ENV{DEBUG_STREAM} and print STDERR "PUSHED\t$class (mode: $mode)\n";
     my $self = bless {
         block_index => 0,
         block_size  => $PUSHED_ARGS{block_size} || $BLOCK_SIZE,
-        buffer      => \$buf,
+        buffer      => \(my $buf = ''),
         key         => $PUSHED_ARGS{key},
         mode        => $mode,
     }, $class;
@@ -131,11 +131,11 @@ sub FLUSH {
     return 0;
 }
 
-sub EOF      {
+sub EOF {
     $ENV{DEBUG_STREAM} and print STDERR "EOF\t$_[0]\n";
     $_[0]->{eof} || $_[0]->ERROR($_[1]);
 }
-sub ERROR    {
+sub ERROR {
     $ENV{DEBUG_STREAM} and print STDERR "ERROR\t$_[0] : ", $_[0]->{error} // 'ok', "\n";
     $ERROR = $_[0]->{error} if $_[0]->{error};
     $_[0]->{error} ? 1 : 0;

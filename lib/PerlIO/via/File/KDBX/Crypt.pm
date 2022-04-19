@@ -4,7 +4,9 @@ package PerlIO::via::File::KDBX::Crypt;
 use warnings;
 use strict;
 
+use Errno;
 use File::KDBX::Error;
+use File::KDBX::Util qw(:io);
 use IO::Handle;
 use namespace::clean;
 
@@ -45,12 +47,11 @@ sub push {
 sub PUSHED {
     my ($class, $mode) = @_;
 
-    $ENV{DEBUG_STREAM} and print STDERR "PUSHED\t$class\n";
+    $ENV{DEBUG_STREAM} and print STDERR "PUSHED\t$class (mode: $mode)\n";
     %PUSHED_ARGS or throw 'Programmer error: Use PerlIO::via::File::KDBX::Crypt->push instead of binmode';
 
-    my $buf = '';
     my $self = bless {
-        buffer  => \$buf,
+        buffer  => \(my $buf = ''),
         cipher  => $PUSHED_ARGS{cipher},
         mode    => $mode,
     }, $class;
@@ -102,7 +103,7 @@ sub POPPED {
     my ($self, $fh) = @_;
 
     $ENV{DEBUG_STREAM} and print STDERR "POPPED\t$self\n";
-    return if $self->EOF($fh) || $self->mode !~ /^w/;
+    return if $self->EOF($fh) || !is_writable($self->mode);
 
     ${$self->buffer} .= eval { $self->cipher->finish } || '';
     if (my $err = $@) {
@@ -126,15 +127,11 @@ sub FLUSH {
     return 0;
 }
 
-# sub EOF      { !$_[0]->cipher || $_[0]->ERROR($_[1]) }
-# sub ERROR    { $_[0]->{error} ? 1 : 0 }
-# sub CLEARERR { delete $_[0]->{error}; 0 }
-
-sub EOF      {
+sub EOF {
     $ENV{DEBUG_STREAM} and print STDERR "EOF\t$_[0]\n";
-    !$_[0]->cipher || $_[0]->ERROR($_[1]);
+    !$_[0]->{cipher} || $_[0]->ERROR($_[1]);
 }
-sub ERROR    {
+sub ERROR {
     $ENV{DEBUG_STREAM} and print STDERR "ERROR\t$_[0] : ", $_[0]->{error} // 'ok', "\n";
     $_[0]->{error} ? 1 : 0;
 }

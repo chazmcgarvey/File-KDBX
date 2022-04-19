@@ -26,7 +26,7 @@ our %EXPORT_TAGS = (
     empty       => [qw(empty nonempty)],
     erase       => [qw(erase erase_scoped)],
     gzip        => [qw(gzip gunzip)],
-    io          => [qw(read_all)],
+    io          => [qw(is_readable is_writable read_all)],
     load        => [qw(load_optional load_xs try_load_optional)],
     search      => [qw(query search simple_expression_query)],
     text        => [qw(snakify trim)],
@@ -423,6 +423,20 @@ sub gzip {
         or throw 'Failed to compress data', status => $status;
     return $out;
 }
+
+=func is_readable
+
+=func is_writable
+
+    $bool = is_readable($mode);
+    $bool = is_writable($mode);
+
+Determine of an C<fopen>-style mode is readable, writable or both.
+
+=cut
+
+sub is_readable { $_[0] !~ /^[aw]b?$/ }
+sub is_writable { $_[0] !~ /^rb?$/ }
 
 =func is_uuid
 

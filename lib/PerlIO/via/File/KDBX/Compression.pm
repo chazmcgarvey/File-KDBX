@@ -6,7 +6,7 @@ use strict;
 
 use Errno;
 use File::KDBX::Error;
-use File::KDBX::Util qw(load_optional);
+use File::KDBX::Util qw(:io load_optional);
 use IO::Handle;
 use namespace::clean;
 
@@ -49,14 +49,13 @@ sub push {
 sub PUSHED {
     my ($class, $mode) = @_;
 
-    $ENV{DEBUG_STREAM} and print STDERR "PUSHED\t$class\n";
-    my $buf = '';
+    $ENV{DEBUG_STREAM} and print STDERR "PUSHED\t$class (mode: $mode)\n";
 
     my $self = bless {
-        buffer  => \$buf,
+        buffer  => \(my $buf = ''),
         mode    => $mode,
-        $mode =~ /^r/ ? (inflator => _inflator(@PUSHED_ARGS)) : (),
-        $mode =~ /^w/ ? (deflator => _deflator(@PUSHED_ARGS)) : (),
+        is_readable($mode) ? (inflator => _inflator(@PUSHED_ARGS)) : (),
+        is_writable($mode) ? (deflator => _deflator(@PUSHED_ARGS)) : (),
     }, $class;
     @PUSHED_ARGS = ();
     return $self;
@@ -79,6 +78,7 @@ sub FILL {
     }
 
     delete $self->{inflator};
+    delete $self->{deflator};
     return undef;
 }
 
@@ -86,7 +86,7 @@ sub WRITE {
     my ($self, $buf, $fh) = @_;
 
     $ENV{DEBUG_STREAM} and print STDERR "WRITE\t$self\n";
-    return 0 if $self->EOF($fh);
+    return 0 if $self->EOF($fh) || !$self->deflator;
 
     my $status = $self->deflator->deflate($buf, my $out);
     $status == Compress::Raw::Zlib::Z_OK() or do {
@@ -102,10 +102,11 @@ sub POPPED {
     my ($self, $fh) = @_;
 
     $ENV{DEBUG_STREAM} and print STDERR "POPPED\t$self\n";
-    return if $self->EOF($fh) || $self->mode !~ /^w/;
+    return if $self->EOF($fh) || !is_writable($self->mode);
 
     # finish
     my $status = $self->deflator->flush(my $out, Compress::Raw::Zlib::Z_FINISH());
+    delete $self->{inflator};
     delete $self->{deflator};
     $status == Compress::Raw::Zlib::Z_OK() or do {
         $self->_set_error("Failed to compress: $status", status => $status);
@@ -128,11 +129,11 @@ sub FLUSH {
     return 0;
 }
 
-sub EOF      {
+sub EOF {
     $ENV{DEBUG_STREAM} and print STDERR "EOF\t$_[0]\n";
-    (!$_[0]->inflator && !$_[0]->deflator) || $_[0]->ERROR($_[1]);
+    !($_[0]->{inflator} || $_[0]->{deflator}) || $_[0]->ERROR($_[1]);
 }
-sub ERROR    {
+sub ERROR {
     $ENV{DEBUG_STREAM} and print STDERR "ERROR\t$_[0] : ", $_[0]->{error} // 'ok', "\n";
     $ERROR = $_[0]->{error} if $_[0]->{error};
     $_[0]->{error} ? 1 : 0;

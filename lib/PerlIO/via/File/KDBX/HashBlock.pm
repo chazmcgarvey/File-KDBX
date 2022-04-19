@@ -5,6 +5,7 @@ use warnings;
 use strict;
 
 use Crypt::Digest qw(digest_data);
+use Errno;
 use File::KDBX::Error;
 use File::KDBX::Util qw(:io);
 use IO::Handle;
@@ -46,13 +47,12 @@ sub push {
 sub PUSHED {
     my ($class, $mode) = @_;
 
-    $ENV{DEBUG_STREAM} and print STDERR "PUSHED\t$class\n";
-    my $buf = '';
+    $ENV{DEBUG_STREAM} and print STDERR "PUSHED\t$class (mode: $mode)\n";
     my $self = bless {
         algorithm   => $PUSHED_ARGS{algorithm} || $ALGORITHM,
         block_index => 0,
         block_size  => $PUSHED_ARGS{block_size} || $BLOCK_SIZE,
-        buffer      => \$buf,
+        buffer      => \(my $buf = ''),
         eof         => 0,
         mode        => $mode,
     }, $class;
@@ -120,11 +120,11 @@ sub FLUSH {
     return 0;
 }
 
-sub EOF      {
+sub EOF {
     $ENV{DEBUG_STREAM} and print STDERR "EOF\t$_[0]\n";
     $_[0]->{eof} || $_[0]->ERROR($_[1]);
 }
-sub ERROR    {
+sub ERROR {
     $ENV{DEBUG_STREAM} and print STDERR "ERROR\t$_[0] : ", $_[0]->{error} // 'ok', "\n";
     $ERROR = $_[0]->{error} if $_[0]->{error};
     $_[0]->{error} ? 1 : 0;
