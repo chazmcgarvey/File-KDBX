@@ -89,7 +89,8 @@ subtest 'IO handle key files' => sub {
     is $key->type, 'hashed', 'file type is detected as hashed';
 
     my ($fh_save, $filepath) = tempfile('keyfile-XXXXXX', TMPDIR => 1, UNLINK => 1, SUFFIX => '.key');
-    ok $key->save(fh => $fh_save, type => KEY_FILE_TYPE_XML), 'Save key file using IO handle';
+    is exception { $key->save(fh => $fh_save, type => KEY_FILE_TYPE_XML) }, undef,
+        'Save key file using IO handle';
     close($fh_save);
 
     my $key2 = File::KDBX::Key::File->new($filepath);

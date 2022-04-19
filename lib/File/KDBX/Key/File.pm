@@ -163,9 +163,18 @@ sub save {
     my $filepath    = $args{filepath} // $self->filepath;
     my $fh          = $args{fh};
 
+    my $filepath_temp;
     if (!openhandle($fh)) {
         $filepath or throw 'Must specify where to safe the key file to';
-        open($fh, '>:raw', $filepath) or throw "Failed to open key file for writing: $!";
+
+        require File::Temp;
+        ($fh, $filepath_temp) = eval { File::Temp::tempfile("${filepath}-XXXXXX", CLEANUP => 1) };
+        if (!$fh or my $err = $@) {
+            $err //= 'Unknown error';
+            throw sprintf('Open file failed (%s): %s', $filepath_temp, $err),
+                error       => $err,
+                filepath    => $filepath_temp;
+        }
     }
 
     if ($type == KEY_FILE_TYPE_XML) {
@@ -181,6 +190,20 @@ sub save {
     }
     else {
         throw "Cannot save $type key file (invalid type)", type => $type;
+    }
+
+    close($fh);
+
+    if ($filepath_temp) {
+        my ($file_mode, $file_uid, $file_gid) = (stat($filepath))[2, 4, 5];
+
+        my $mode = $args{mode} // $file_mode // do { my $m = umask; defined $m ? oct(666) &~ $m : undef };
+        my $uid  = $args{uid}  // $file_uid  // -1;
+        my $gid  = $args{gid}  // $file_gid  // -1;
+        chmod($mode, $filepath_temp) if defined $mode;
+        chown($uid, $gid, $filepath_temp);
+        rename($filepath_temp, $filepath)
+            or throw "Failed to write file ($filepath): $!", filepath => $filepath;
     }
 }
 
