@@ -10,9 +10,10 @@ use File::KDBX::Constants qw(:all);
 use File::KDBX::Error;
 use File::KDBX::Safe;
 use File::KDBX::Util qw(:empty erase generate_uuid search simple_expression_query snakify);
+use Hash::Util::FieldHash qw(fieldhashes);
 use List::Util qw(any);
 use Ref::Util qw(is_ref is_arrayref is_plain_hashref);
-use Scalar::Util qw(blessed refaddr);
+use Scalar::Util qw(blessed);
 use Time::Piece;
 use boolean;
 use namespace::clean;
@@ -20,8 +21,7 @@ use namespace::clean;
 our $VERSION = '999.999'; # VERSION
 our $WARNINGS = 1;
 
-my %SAFE;
-my %KEYS;
+fieldhashes \my (%SAFE, %KEYS);
 
 =method new
 
@@ -44,7 +44,7 @@ sub new {
     return $self;
 }
 
-sub DESTROY { !in_global_destruction and $_[0]->reset }
+sub DESTROY { local ($., $@, $!, $^E, $?); !in_global_destruction and $_[0]->reset }
 
 =method init
 
@@ -80,7 +80,6 @@ sub reset {
     erase $self->inner_headers->{+INNER_HEADER_INNER_RANDOM_STREAM_KEY};
     erase $self->{raw};
     %$self = ();
-    delete $SAFE{refaddr($self)};
     $self->_remove_safe;
     return $self;
 }
@@ -106,7 +105,7 @@ sub STORABLE_freeze {
 
     my $copy = {%$self};
 
-    return '', $copy, $KEYS{refaddr($self)} // (), $SAFE{refaddr($self)} // ();
+    return '', $copy, $KEYS{$self} // (), $SAFE{$self} // ();
 }
 
 sub STORABLE_thaw {
@@ -118,8 +117,8 @@ sub STORABLE_thaw {
     my $safe    = shift;
 
     @$self{keys %$clone} = values %$clone;
-    $KEYS{refaddr($self)} = $key;
-    $SAFE{refaddr($self)} = $safe;
+    $KEYS{$self} = $key;
+    $SAFE{$self} = $safe;
 
     for my $object (@{$self->all_groups}, @{$self->all_entries(history => 1)}) {
         $object->kdbx($self);
@@ -1159,11 +1158,11 @@ state. Returns itself to allow method chaining.
 
 sub _safe {
     my $self = shift;
-    $SAFE{refaddr($self)} = shift if @_;
-    $SAFE{refaddr($self)};
+    $SAFE{$self} = shift if @_;
+    $SAFE{$self};
 }
 
-sub _remove_safe { delete $SAFE{refaddr($_[0])} }
+sub _remove_safe { delete $SAFE{$_[0]} }
 
 sub lock {
     my $self = shift;
@@ -1277,8 +1276,8 @@ dumper when loading or saving a KDBX file.
 
 sub key {
     my $self = shift;
-    $KEYS{refaddr($self)} = File::KDBX::Key->new(@_) if @_;
-    $KEYS{refaddr($self)};
+    $KEYS{$self} = File::KDBX::Key->new(@_) if @_;
+    $KEYS{$self};
 }
 
 =method composite_key

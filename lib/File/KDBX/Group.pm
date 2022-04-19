@@ -8,9 +8,10 @@ use Devel::GlobalDestruction;
 use File::KDBX::Constants qw(:icon);
 use File::KDBX::Error;
 use File::KDBX::Util qw(generate_uuid);
+use Hash::Util::FieldHash;
 use List::Util qw(sum0);
 use Ref::Util qw(is_ref);
-use Scalar::Util qw(blessed refaddr);
+use Scalar::Util qw(blessed);
 use Time::Piece;
 use boolean;
 use namespace::clean;
@@ -77,7 +78,7 @@ sub uuid {
         my %args = @_ % 2 == 1 ? (uuid => shift, @_) : @_;
         my $old_uuid = $self->{uuid};
         my $uuid = $self->{uuid} = delete $args{uuid} // generate_uuid;
-        # if (defined $old_uuid and my $kdbx = $KDBX{refaddr($self)}) {
+        # if (defined $old_uuid and my $kdbx = $KDBX{$self}) {
         #     $kdbx->_update_group_uuid($old_uuid, $uuid, $self);
         # }
     }
@@ -248,7 +249,7 @@ Determine if a group is the root group of its associated database.
 sub is_root {
     my $self = shift;
     my $kdbx = eval { $self->kdbx } or return;
-    return refaddr($kdbx->root) == refaddr($self);
+    return Hash::Util::FieldHash::id($kdbx->root) == Hash::Util::FieldHash::id($self);
 }
 
 =method path

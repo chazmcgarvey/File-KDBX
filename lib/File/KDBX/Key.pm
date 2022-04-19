@@ -8,14 +8,15 @@ use Devel::GlobalDestruction;
 use File::KDBX::Error;
 use File::KDBX::Safe;
 use File::KDBX::Util qw(erase);
+use Hash::Util::FieldHash qw(fieldhashes);
 use Module::Load;
 use Ref::Util qw(is_arrayref is_coderef is_hashref is_ref is_scalarref);
-use Scalar::Util qw(blessed openhandle refaddr);
+use Scalar::Util qw(blessed openhandle);
 use namespace::clean;
 
 our $VERSION = '999.999'; # VERSION
 
-my %SAFE;
+fieldhashes \my %SAFE;
 
 =method new
 
@@ -55,7 +56,10 @@ sub new {
     return $self;
 }
 
-sub DESTROY { !in_global_destruction and do { $_[0]->_clear_raw_key; erase \$_[0]->{primitive} } }
+sub DESTROY {
+    local ($., $@, $!, $^E, $?);
+    !in_global_destruction and do { $_[0]->_clear_raw_key; eval { erase \$_[0]->{primitive} } }
+}
 
 =method init
 
@@ -191,10 +195,10 @@ Get whether or not the key's raw secret is currently in memory protection.
 
 =cut
 
-sub is_hidden { !!$SAFE{refaddr($_[0])} }
+sub is_hidden { !!$SAFE{$_[0]} }
 
-sub _safe     { $SAFE{refaddr($_[0])} }
-sub _new_safe { $SAFE{refaddr($_[0])} = File::KDBX::Safe->new }
+sub _safe     { $SAFE{$_[0]} }
+sub _new_safe { $SAFE{$_[0]} = File::KDBX::Safe->new }
 
 1;
 __END__

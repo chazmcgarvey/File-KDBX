@@ -43,6 +43,7 @@ sub new {
 
 sub DESTROY {
     return if in_global_destruction;
+    local ($., $@, $!, $^E, $?);
     my $self = shift;
     $self->close;
 }

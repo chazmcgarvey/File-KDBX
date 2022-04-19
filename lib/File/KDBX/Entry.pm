@@ -10,9 +10,10 @@ use Encode qw(encode);
 use File::KDBX::Constants qw(:history :icon);
 use File::KDBX::Error;
 use File::KDBX::Util qw(:function :uri generate_uuid load_optional);
+use Hash::Util::FieldHash;
 use List::Util qw(sum0);
-use Ref::Util qw(is_plain_hashref is_ref);
-use Scalar::Util qw(looks_like_number refaddr);
+use Ref::Util qw(is_plain_hashref);
+use Scalar::Util qw(looks_like_number);
 use Storable qw(dclone);
 use Time::Piece;
 use boolean;
@@ -169,7 +170,7 @@ sub uuid {
         for my $entry (@{$self->history}) {
             $entry->{uuid} = $uuid;
         }
-        # if (defined $old_uuid and my $kdbx = $KDBX{refaddr($self)}) {
+        # if (defined $old_uuid and my $kdbx = $KDBX{$self}) {
         #     $kdbx->_update_entry_uuid($old_uuid, $uuid, $self);
         # }
     }
@@ -363,7 +364,7 @@ sub _expand_placeholder {
     }
     return if !defined $File::KDBX::PLACEHOLDERS{$placeholder_key};
 
-    my $local_key = join('/', refaddr($self), $placeholder_key);
+    my $local_key = join('/', Hash::Util::FieldHash::id($self), $placeholder_key);
     local $PLACEHOLDERS{$local_key} = my $handler = $PLACEHOLDERS{$local_key} // do {
         my $handler = $File::KDBX::PLACEHOLDERS{$placeholder_key} or next;
         memoize recurse_limit($handler, $PLACEHOLDER_MAX_DEPTH, sub {

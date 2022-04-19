@@ -10,8 +10,8 @@ use Exporter qw(import);
 use File::KDBX::Error;
 use List::Util 1.33 qw(any all);
 use Module::Load;
-use Ref::Util qw(is_arrayref is_coderef is_hashref is_ref is_refref is_scalarref is_ref);
-use Scalar::Util qw(blessed isdual looks_like_number readonly refaddr);
+use Ref::Util qw(is_arrayref is_coderef is_hashref is_ref is_refref is_scalarref);
+use Scalar::Util qw(blessed readonly);
 use namespace::clean -except => 'import';
 
 our $VERSION = '999.999'; # VERSION

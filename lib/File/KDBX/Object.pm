@@ -7,14 +7,14 @@ use strict;
 use Devel::GlobalDestruction;
 use File::KDBX::Error;
 use File::KDBX::Util qw(:uuid);
+use Hash::Util::FieldHash qw(fieldhashes);
 use Ref::Util qw(is_arrayref is_plain_hashref is_ref);
-use Scalar::Util qw(blessed refaddr weaken);
+use Scalar::Util qw(blessed weaken);
 use namespace::clean;
 
 our $VERSION = '999.999'; # VERSION
 
-my %KDBX;
-my %PARENT;
+fieldhashes \my (%KDBX, %PARENT);
 
 =method new
 
@@ -97,13 +97,6 @@ sub init {
     }
 
     return $self;
-}
-
-sub DESTROY {
-    return if in_global_destruction;
-    my $self = shift;
-    delete $KDBX{refaddr($self)};
-    delete $PARENT{refaddr($self)};
 }
 
 =method wrap
@@ -191,19 +184,21 @@ sub STORABLE_freeze {
     delete $copy->{groups}  if !$CLONE{groups};
     delete $copy->{history} if !$CLONE{history};
 
-    return refaddr($self) || '', $copy;
+    return ($cloning ? Hash::Util::FieldHash::id($self) : ''), $copy;
 }
 
 sub STORABLE_thaw {
     my $self    = shift;
     my $cloning = shift;
     my $addr    = shift;
-    my $clone   = shift;
+    my $copy    = shift;
 
-    @$self{keys %$clone} = values %$clone;
+    @$self{keys %$copy} = values %$copy;
 
-    my $kdbx = $KDBX{$addr};
-    $self->kdbx($kdbx) if $kdbx;
+    if ($cloning) {
+        my $kdbx = $KDBX{$addr};
+        $self->kdbx($kdbx) if $kdbx;
+    }
 
     if (defined $self->{uuid}) {
         if (($CLONE{reference_password} || $CLONE{reference_username}) && $self->can('strings')) {
@@ -215,7 +210,7 @@ sub STORABLE_thaw {
                 local $CLONE{history}               = 1;
                 local $CLONE{reference_password}    = 0;
                 local $CLONE{reference_username}    = 0;
-                bless Storable::dclone({%$clone}), 'File::KDBX::Entry';
+                bless Storable::dclone({%$copy}), 'File::KDBX::Entry';
             };
             my $txn = $self->begin_work($clone_obj);
             if ($CLONE{reference_password}) {
@@ -242,17 +237,16 @@ Get or set the L<File::KDBX> instance associated with this object.
 sub kdbx {
     my $self = shift;
     $self = $self->new if !ref $self;
-    my $addr = refaddr($self);
     if (@_) {
-        $KDBX{$addr} = shift;
-        if (defined $KDBX{$addr}) {
-            weaken $KDBX{$addr};
+        if (my $kdbx = shift) {
+            $KDBX{$self} = $kdbx;
+            weaken $KDBX{$self};
         }
         else {
-            delete $KDBX{$addr};
+            delete $KDBX{$self};
         }
     }
-    $KDBX{$addr} or throw 'Object is disassociated from a KDBX database', object => $self;
+    $KDBX{$self} or throw 'Object is disassociated from a KDBX database', object => $self;
 }
 
 =method id
@@ -285,18 +279,18 @@ Get the parent group to which an object belongs or C<undef> if it belongs to no 
 
 sub group {
     my $self = shift;
-    my $addr = refaddr($self);
-    if (my $group = $PARENT{$addr}) {
+    my $addr = Hash::Util::FieldHash::id($self);
+    if (my $group = $PARENT{$self}) {
         my $method = $self->_parent_container;
         for my $object (@{$group->$method}) {
-            return $group if $addr == refaddr($object);
+            return $group if $addr == Hash::Util::FieldHash::id($object);
         }
-        delete $PARENT{$addr};
+        delete $PARENT{$self};
     }
     # always get lineage from root to leaf because the other way requires parent, so it would be recursive
     my $lineage = $self->kdbx->_trace_lineage($self) or return;
     my $group = pop @$lineage or return;
-    $PARENT{$addr} = $group; weaken $PARENT{$addr};
+    $PARENT{$self} = $group; weaken $PARENT{$self};
     return $group;
 }
 
@@ -305,10 +299,11 @@ sub parent { shift->group(@_) }
 sub _set_group {
     my $self = shift;
     if (my $parent = shift) {
-        $PARENT{refaddr($self)} = $parent;
+        $PARENT{$self} = $parent;
+        weaken $PARENT{$self};
     }
     else {
-        delete $PARENT{refaddr($self)};
+        delete $PARENT{$self};
     }
     return $self;
 }
@@ -331,16 +326,16 @@ sub lineage {
     my $self = shift;
     my $base = shift;
 
-    my $base_addr = $base ? refaddr($base) : 0;
+    my $base_addr = $base ? Hash::Util::FieldHash::id($base) : 0;
 
     # try leaf to root
     my @path;
     my $o = $self;
     while ($o = $o->parent) {
         unshift @path, $o;
-        last if $base_addr == refaddr($o);
+        last if $base_addr == Hash::Util::FieldHash::id($o);
     }
-    return \@path if @path && ($base_addr == refaddr($path[0]) || $path[0]->is_root);
+    return \@path if @path && ($base_addr == Hash::Util::FieldHash::id($path[0]) || $path[0]->is_root);
 
     # try root to leaf
     return $self->kdbx->_trace_lineage($self, $base);
@@ -473,14 +468,14 @@ sub _wrap_group {
     my $self  = shift;
     my $group = shift;
     require File::KDBX::Group;
-    return File::KDBX::Group->wrap($group, $KDBX{refaddr($self)});
+    return File::KDBX::Group->wrap($group, $KDBX{$self});
 }
 
 sub _wrap_entry {
     my $self  = shift;
     my $entry = shift;
     require File::KDBX::Entry;
-    return File::KDBX::Entry->wrap($entry, $KDBX{refaddr($self)});
+    return File::KDBX::Entry->wrap($entry, $KDBX{$self});
 }
 
 sub TO_JSON { +{%{$_[0]}} }
