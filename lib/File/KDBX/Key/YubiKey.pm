@@ -16,6 +16,10 @@ use parent 'File::KDBX::Key::ChallengeResponse';
 
 our $VERSION = '999.999'; # VERSION
 
+# It can take some time for the USB device to be ready again, so we can retry a few times.
+our $RETRY_COUNT    = 5;
+our $RETRY_INTERVAL = 0.1;
+
 my @CONFIG_VALID = (0, CONFIG1_VALID, CONFIG2_VALID);
 my @CONFIG_TOUCH = (0, CONFIG1_TOUCH, CONFIG2_TOUCH);
 
@@ -37,28 +41,38 @@ sub challenge {
     }
 
     my @cmd = ($self->_program('ykchalresp'), "-n$device", "-$slot", qw{-H -i-}, $timeout == 0 ? '-N' : ());
-    my $r = $self->_run_ykpers(\@cmd, {
-        (0 < $timeout ? (timeout => $timeout) : ()),
-        child_stdin                         => pad_pkcs7($challenge, 64),
-        terminate_on_parent_sudden_death    => 1,
-    });
 
-    if (my $t = $r->{timeout}) {
-        throw 'Timed out while waiting for challenge response',
-            command     => \@cmd,
-            challenge   => $challenge,
-            timeout     => $t,
-            result      => $r;
-    }
+    my $r;
+    my $try = 0;
+    TRY:
+    {
+        $r = $self->_run_ykpers(\@cmd, {
+            (0 < $timeout ? (timeout => $timeout) : ()),
+            child_stdin                         => pad_pkcs7($challenge, 64),
+            terminate_on_parent_sudden_death    => 1,
+        });
 
-    my $exit_code = $r->{exit_code};
-    if ($exit_code != 0) {
-        my $err = $r->{stderr};
-        chomp $err;
-        my $yk_errno = _yk_errno($err);
-        throw 'Failed to receive challenge response: ' . ($err ? $err : ''),
-            error       => $err,
-            yk_errno    => $yk_errno || 0;
+        if (my $t = $r->{timeout}) {
+            throw 'Timed out while waiting for challenge response',
+                command     => \@cmd,
+                challenge   => $challenge,
+                timeout     => $t,
+                result      => $r;
+        }
+
+        my $exit_code = $r->{exit_code};
+        if ($exit_code != 0) {
+            my $err = $r->{stderr};
+            chomp $err;
+            my $yk_errno = _yk_errno($err);
+            if ($yk_errno == YK_EUSBERR && $err =~ /resource busy/i && ++$try <= $RETRY_COUNT) {
+                sleep $RETRY_INTERVAL;
+                goto TRY;
+            }
+            throw 'Failed to receive challenge response: ' . ($err ? $err : 'Something happened'),
+                error       => $err,
+                yk_errno    => $yk_errno || 0;
+        }
     }
 
     my $resp = $r->{stdout};
@@ -301,27 +315,30 @@ sub _get_yubikey_info {
     my $timeout = $self->timeout;
     my @cmd = ($self->_program('ykinfo'), "-n$device", qw{-a});
 
+    my $r;
     my $try = 0;
     TRY:
-    my $r = $self->_run_ykpers(\@cmd, {
-        (0 < $timeout ? (timeout => $timeout) : ()),
-        terminate_on_parent_sudden_death    => 1,
-    });
+    {
+        $r = $self->_run_ykpers(\@cmd, {
+            (0 < $timeout ? (timeout => $timeout) : ()),
+            terminate_on_parent_sudden_death    => 1,
+        });
 
-    my $exit_code = $r->{exit_code};
-    if ($exit_code != 0) {
-        my $err = $r->{stderr};
-        chomp $err;
-        my $yk_errno = _yk_errno($err);
-        return if $yk_errno == YK_ENOKEY;
-        if ($yk_errno == YK_EWOULDBLOCK && ++$try <= 3) {
-            sleep 0.1;
-            goto TRY;
+        my $exit_code = $r->{exit_code};
+        if ($exit_code != 0) {
+            my $err = $r->{stderr};
+            chomp $err;
+            my $yk_errno = _yk_errno($err);
+            return if $yk_errno == YK_ENOKEY;
+            if ($yk_errno == YK_EWOULDBLOCK && ++$try <= $RETRY_COUNT) {
+                sleep $RETRY_INTERVAL;
+                goto TRY;
+            }
+            alert 'Failed to get YubiKey device info: ' . ($err ? $err : 'Something happened'),
+                error       => $err,
+                yk_errno    => $yk_errno || 0;
+            return;
         }
-        alert 'Failed to get YubiKey device info: ' . ($err ? $err : 'Something happened'),
-            error       => $err,
-            yk_errno    => $yk_errno || 0;
-        return;
     }
 
     my $out = $r->{stdout};
