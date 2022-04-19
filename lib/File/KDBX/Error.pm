@@ -78,10 +78,11 @@ as a B<File::KDBX::Error>. Example:
 =cut
 
 sub error {
+    my $class = @_ && $_[0] eq __PACKAGE__ ? shift : undef;
     my $self = (blessed($_[0]) && $_[0]->isa('File::KDBX::Error'))
         ? shift
-        : (@_ && $_[0] eq __PACKAGE__)
-            ? shift->new(@_)
+        : $class
+            ? $class->new(@_)
             : __PACKAGE__->new(@_);
     return $self;
 }
