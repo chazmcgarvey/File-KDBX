@@ -39,7 +39,7 @@ sub new {
 
     my $error = delete $args{_error};
     my $e = $error;
-    # $e =~ s/ at \H+ line \d+.*//g;
+    $e =~ s/ at \H+ line \d+.*//g;
 
     my $self = bless {
         details     => \%args,
@@ -108,11 +108,36 @@ sub details {
     return $details;
 }
 
+=attr errno
+
+Get the value of C<errno> when the exception was created.
+
+=cut
+
 sub errno { $_[0]->{errno} }
+
+=attr previous
+
+Get the value of C<$@> (i.e. latest exception) at the time the exception was created.
+
+
+=cut
 
 sub previous { $_[0]->{previous} }
 
+=attr trace
+
+Get a stack trace indicating where in the code the exception was created.
+
+=cut
+
 sub trace { $_[0]->{trace} // [] }
+
+=attr type
+
+Get the exception type, if any.
+
+=cut
 
 sub type { $_[0]->details->{type} // '' }
 
@@ -130,16 +155,10 @@ variable to truthy to stringify the whole error object.
 
 sub _cmp { "$_[0]" cmp "$_[1]" }
 
-sub PROPAGATE {
-    'wat';
-}
-
 sub to_string {
     my $self = shift;
-    # return "uh oh\n";
     my $msg = "$self->{trace}[0]";
-    $msg .= '.' if $msg !~ /[\.\!\?]$/; # Why does this cause infinite recursion on some perls?
-    # $msg .= '.' if $msg !~ /(?:\.|!|\?)$/;
+    $msg .= '.' if $msg !~ /[\.\!\?]$/;
     if ($ENV{DEBUG}) {
         require Data::Dumper;
         local $Data::Dumper::Indent = 1;
