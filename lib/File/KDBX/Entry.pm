@@ -132,7 +132,7 @@ Boolean value indicating whether or not an entry is expired.
 
 =attr usage_count
 
-The number of times an entry has been used, which typically means how many times the C<Password> string has
+The number of times an entry has been used, which typically means how many times the B<Password> string has
 been accessed.
 
 =attr location_changed
@@ -141,23 +141,23 @@ Date and time when the entry was last moved to a different group.
 
 =attr notes
 
-Alias for the C<Notes> string value.
+Alias for the B<Notes> string value.
 
 =attr password
 
-Alias for the C<Password> string value.
+Alias for the B<Password> string value.
 
 =attr title
 
-Alias for the C<Title> string value.
+Alias for the B<Title> string value.
 
 =attr url
 
-Alias for the C<URL> string value.
+Alias for the B<URL> string value.
 
 =attr username
 
-Aliases for the C<UserName> string value.
+Aliases for the B<UserName> string value.
 
 =cut
 
@@ -831,11 +831,11 @@ called "files" or "attachments"). Every string and binary has a key or name. The
 that every entry has:
 
 =for :list
-* C<Title>
-* C<UserName>
-* C<Password>
-* C<URL>
-* C<Notes>
+* B<Title>
+* B<UserName>
+* B<Password>
+* B<URL>
+* B<Notes>
 
 Beyond this, you can store any number of other strings and any number of binaries that you can use for
 whatever purpose you want.
@@ -849,7 +849,7 @@ the attributes to see what's available.
 Entry string and auto-type key sequences can have placeholders or template tags that can be replaced by other
 values. Placeholders can appear like C<{PLACEHOLDER}>. For example, a B<URL> string might have a value of
 C<http://example.com?user={USERNAME}>. C<{USERNAME}> is a placeholder for the value of the B<UserName> string
-of the same entry. If the C<UserName> string had a value of "batman", the B<URL> string would expand to
+of the same entry. If the B<UserName> string had a value of "batman", the B<URL> string would expand to
 C<http://example.com?user=batman>.
 
 Some placeholders take an argument, where the argument follows the tag after a colon but before the closing
@@ -962,7 +962,7 @@ C<{NUMPAD4}>, C<{NUMPAD5}>, C<{NUMPAD6}>, C<{NUMPAD7}>, C<{NUMPAD8}>, C<{NUMPAD9
 * ☒ C<{CLIPBOARD}>
 * ☒ C<{CMD:/CommandLine/Options/}>
 * ☑ C<{C:Comment}> - Comments are simply replaced by nothing
-* ☑ C<{ENV:} and C<%ENV%> - Environment variables
+* ☑ C<{ENV:}> and C<%ENV%> - Environment variables
 * ☒ C<{GROUP_SEL_NOTES}>
 * ☒ C<{GROUP_SEL_PATH}>
 * ☒ C<{GROUP_SEL}>
@@ -996,7 +996,7 @@ strings or auto-complete key sequences.
 
 If the name of the placeholder ends in a colon, then it is expected to receive an argument. During expansion,
 everything after the colon and before the end of the placeholder is passed to your placeholder handler
-subroutine. So if the placeholder is C<{MY_PLACEHOLDER:whatever}>, C<$arg> will have the value C<whatever>.
+subroutine. So if the placeholder is C<{MY_PLACEHOLDER:whatever}>, C<$arg> will have the value B<whatever>.
 
 An argument is required for placeholders than take one. I.e. The placeholder handler won't be called if there
 is no argument. If you want a placeholder to support an optional argument, you'll need to set the placeholder

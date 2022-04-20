@@ -6,7 +6,7 @@ use strict;
 use lib 't/lib';
 use TestCommon;
 
-use File::KDBX::Util qw(erase erase_scoped);
+use File::KDBX::Util qw(:erase);
 use Test::More;
 
 my $data1   = 'hello';

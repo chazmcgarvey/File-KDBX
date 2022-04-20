@@ -6,7 +6,7 @@ use strict;
 
 use Crypt::Cipher;
 use Crypt::Digest qw(digest_data);
-use File::KDBX::Constants qw(:kdf);
+use File::KDBX::Constants qw(:bool :kdf);
 use File::KDBX::Error;
 use File::KDBX::Util qw(:load can_fork);
 use namespace::clean;
@@ -19,11 +19,8 @@ our $VERSION = '999.999'; # VERSION
 my $FORK_OPTIMIZATION_THRESHOLD = 100_000;
 
 BEGIN {
-    load_xs;
-
-    my $use_fork = 1;
-    $use_fork = 0 if $ENV{NO_FORK} || !can_fork;
-    *_USE_FORK = $use_fork ? sub() { 1 } : sub() { 0 };
+    my $use_fork = $ENV{NO_FORK} || !can_fork ? FALSE : TRUE;
+    *_USE_FORK = sub() { $use_fork };
 }
 
 sub init {
@@ -87,10 +84,7 @@ sub _transform {
     return digest_data('SHA256', $l, $r);
 }
 
-sub _transform_half {
-    my $xs = __PACKAGE__->can('_transform_half_xs');
-    goto $xs if $xs;
-
+sub _transform_half_pp {
     my $seed    = shift;
     my $key     = shift;
     my $rounds  = shift;
@@ -103,6 +97,11 @@ sub _transform_half {
     }
 
     return $result;
+}
+
+BEGIN {
+    my $use_xs = load_xs;
+    *_transform_half = $use_xs ? \&File::KDBX::XS::kdf_aes_transform_half : \&_transform_half_pp;
 }
 
 1;

@@ -201,6 +201,10 @@ BEGIN {
             CERTIFICATE         => dualvar( 67, 'Certificate'),
             SMARTPHONE          => dualvar( 68, 'Smartphone'),
         },
+        bool        => {
+            FALSE   => !1,
+            TRUE    => 1,
+        },
         time        => {
             __prefix                    => 'TIME',
             SECONDS_AD1_TO_UNIX_EPOCH   => 62_135_596_800,
@@ -324,6 +328,7 @@ This module provides importable constants related to KDBX. Constants can be impo
 * L</:key_file>
 * L</:history>
 * L</:icon>
+* L</:bool>
 * L</:time>
 * L</:yubikey>
 * C<:all> - All of the above
@@ -554,6 +559,14 @@ Constants for default icons used by KeePass password safe implementations:
 = C<ICON_MONEY>
 = C<ICON_CERTIFICATE>
 = C<ICON_SMARTPHONE>
+
+=head2 :bool
+
+Boolean values:
+
+=for :list
+= C<FALSE>
+= C<TRUE>
 
 =head2 :time
 

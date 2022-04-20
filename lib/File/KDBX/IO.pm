@@ -5,7 +5,8 @@ use warnings;
 use strict;
 
 use Devel::GlobalDestruction;
-use File::KDBX::Util qw(:empty :bool);
+use File::KDBX::Constants qw(:bool);
+use File::KDBX::Util qw(:empty);
 use List::Util qw(sum0);
 use Ref::Util qw(is_blessed_ref is_ref is_scalarref);
 use Symbol qw(gensym);

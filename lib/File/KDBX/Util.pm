@@ -7,6 +7,7 @@ use strict;
 use Crypt::PRNG qw(random_bytes random_string);
 use Encode qw(decode encode);
 use Exporter qw(import);
+use File::KDBX::Constants qw(:bool);
 use File::KDBX::Error;
 use List::Util 1.33 qw(any all);
 use Module::Load;
@@ -18,7 +19,6 @@ our $VERSION = '999.999'; # VERSION
 
 our %EXPORT_TAGS = (
     assert      => [qw(assert_64bit)],
-    bool        => [qw(FALSE TRUE)],
     clone       => [qw(clone clone_nomagic)],
     crypt       => [qw(pad_pkcs7)],
     debug       => [qw(dumper)],
@@ -82,17 +82,6 @@ my %OP_NEG = (
     '!~'    =>  '=~',
 );
 
-=func FALSE
-
-=func TRUE
-
-Constants appropriate for use as return values in functions claiming to return true or false.
-
-=cut
-
-sub FALSE() { !1 }
-sub TRUE()  {  1 }
-
 =func load_xs
 
     $bool = load_xs();
@@ -103,23 +92,23 @@ that at least the given version is loaded.
 
 =cut
 
+my $XS_LOADED;
 sub load_xs {
     my $version = shift;
 
-    goto IS_LOADED if File::KDBX->can('_XS_LOADED');
+    goto IS_LOADED if defined $XS_LOADED;
 
-    my $try_xs = 1;
-    $try_xs = 0 if $ENV{PERL_ONLY} || (exists $ENV{PERL_FILE_KDBX_XS} && !$ENV{PERL_FILE_KDBX_XS});
+    if ($ENV{PERL_ONLY} || (exists $ENV{PERL_FILE_KDBX_XS} && !$ENV{PERL_FILE_KDBX_XS})) {
+        return $XS_LOADED = FALSE;
+    }
 
-    my $use_xs = 0;
-    $use_xs = eval { require File::KDBX::XS; 1 } if $try_xs;
-
-    *File::KDBX::_XS_LOADED = *File::KDBX::_XS_LOADED = $use_xs ? \&TRUE : \&FALSE;
+    $XS_LOADED = !!eval { require File::KDBX::XS; 1 };
 
     IS_LOADED:
     {
         local $@;
-        return $version ? !!eval { File::KDBX::XS->VERSION($version); 1 } : File::KDBX::_XS_LOADED();
+        return $XS_LOADED if !$version;
+        return !!eval { File::KDBX::XS->VERSION($version); 1 };
     }
 }
 
@@ -286,13 +275,13 @@ Overwrite the memory used by one or more string.
 
 BEGIN {
     if (load_xs) {
-        # loaded CowREFCNT
+        *_CowREFCNT = \&File::KDBX::XS::CowREFCNT;
     }
     elsif (eval { require B::COW; 1 }) {
-        *CowREFCNT = \*B::COW::cowrefcnt;
+        *_CowREFCNT = \&B::COW::cowrefcnt;
     }
     else {
-        *CowREFCNT = sub { undef };
+        *_CowREFCNT = sub { undef };
     }
 }
 
@@ -303,7 +292,7 @@ sub erase {
     for (@_) {
         if (!is_ref($_)) {
             next if !defined $_ || readonly $_;
-            my $cowrefcnt = CowREFCNT($_);
+            my $cowrefcnt = _CowREFCNT($_);
             goto FREE_NONREF if defined $cowrefcnt && 1 < $cowrefcnt;
             # if (__PACKAGE__->can('erase_xs')) {
             #     erase_xs($_);
@@ -318,7 +307,7 @@ sub erase {
         }
         elsif (is_scalarref($_)) {
             next if !defined $$_ || readonly $$_;
-            my $cowrefcnt = CowREFCNT($$_);
+            my $cowrefcnt = _CowREFCNT($$_);
             goto FREE_REF if defined $cowrefcnt && 1 < $cowrefcnt;
             # if (__PACKAGE__->can('erase_xs')) {
             #     erase_xs($$_);
