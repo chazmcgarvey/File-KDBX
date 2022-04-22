@@ -212,11 +212,32 @@ sub kdbx {
 
 =attr format
 
-TODO
+Get the file format used for reading the database. Normally the format is auto-detected from the data stream.
+This auto-detection works well, so there's not really a good reason to explicitly specify the format.
+Possible formats:
+
+=for :list
+* C<V3>
+* C<V4>
+* C<KDB>
+* C<XML>
+* C<Raw>
 
 =cut
 
 sub format { $_[0]->{format} }
+
+=attr inner_format
+
+Get the format of the data inside the KDBX envelope. This only applies to C<V3> and C<V4> formats. Possible
+formats:
+
+=for :list
+* C<XML> - Read the database groups and entries as XML (default)
+* C<Raw> - Read parsing and store the result in L<File::KDBX/raw>
+
+=cut
+
 sub inner_format { $_[0]->{inner_format} // 'XML' }
 
 =attr min_version
@@ -346,3 +367,9 @@ sub _read_inner_body {
 }
 
 1;
+__END__
+
+=head1 DESCRIPTION
+
+
+=cut

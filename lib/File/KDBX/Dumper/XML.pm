@@ -12,7 +12,6 @@ use File::KDBX::Error;
 use File::KDBX::Util qw(assert_64bit erase_scoped gzip snakify);
 use IO::Handle;
 use Scalar::Util qw(isdual looks_like_number);
-use Scope::Guard;
 use Time::Piece;
 use XML::LibXML;
 use boolean;
@@ -22,11 +21,27 @@ use parent 'File::KDBX::Dumper';
 
 our $VERSION = '999.999'; # VERSION
 
-sub protect {
+=attr allow_protection
+
+    $bool = $dumper->allow_protection;
+
+Get whether or not protected strings and binaries should be written in an encrypted stream. Default: C<TRUE>
+
+=cut
+
+sub allow_protection {
     my $self = shift;
-    $self->{protect} = shift if @_;
-    $self->{protect} //= 1;
+    $self->{allow_protection} = shift if @_;
+    $self->{allow_protection} //= 1;
 }
+
+=attr binaries
+
+    $bool = $dumper->binaries;
+
+Get whether or not binaries within the database should be written. Default: C<TRUE>
+
+=cut
 
 sub binaries {
     my $self = shift;
@@ -34,17 +49,55 @@ sub binaries {
     $self->{binaries} //= $self->kdbx->version < KDBX_VERSION_4_0;
 }
 
+=attr compress_binaries
+
+    $tristate = $dumper->compress_binaries;
+
+Get whether or not to compress binaries. Possible values:
+
+=for :list
+* C<TRUE> - Always compress binaries
+* C<FALSE> - Never compress binaries
+* C<undef> - Compress binaries if it results in smaller database sizes (default)
+
+=cut
+
 sub compress_binaries {
     my $self = shift;
     $self->{compress_binaries} = shift if @_;
     $self->{compress_binaries};
 }
 
+=attr compress_datetimes
+
+    $bool = $dumper->compress_datetimes;
+
+Get whether or not to write compressed datetimes. Datetimes are traditionally written in the human-readable
+string format of C<1970-01-01T00:00:00Z>, but they can also be written in a compressed form to save some
+bytes. The default is to write compressed datetimes if the KDBX file version is 4+, otherwise use the
+human-readable format.
+
+=cut
+
 sub compress_datetimes {
     my $self = shift;
     $self->{compress_datetimes} = shift if @_;
     $self->{compress_datetimes};
 }
+
+=attr header_hash
+
+    $octets = $dumper->header_hash;
+
+Get the value to be written as the B<HeaderHash> in the B<Meta> section. This is the way KDBX3 files validate
+the authenticity of header data. This is unnecessary and should not be used with KDBX4 files because that
+format uses HMAC-SHA256 to detect tampering.
+
+L<File::KDBX::Dumper::V3> automatically calculates the header hash an provides it to this module, and plain
+XML files which don't have a KDBX wrapper don't have headers and so should have a header hash. Therefore there
+is probably never any reason to set this manually.
+
+=cut
 
 sub header_hash { $_[0]->{header_hash} }
 
@@ -195,15 +248,15 @@ sub _write_xml_compressed_content {
         $value = \$encoded;
     }
 
-    my $always_compress = $self->compress_binaries;
-    my $try_compress = $always_compress || !defined $always_compress;
+    my $should_compress = $self->compress_binaries;
+    my $try_compress = $should_compress || !defined $should_compress;
 
     my $compressed;
     if ($try_compress) {
         $compressed = gzip($$value);
         push @cleanup, erase_scoped $compressed;
 
-        if ($always_compress || length($compressed) < length($$value)) {
+        if ($should_compress || length($compressed) < length($$value)) {
             $value = \$compressed;
             $node->setAttribute('Compressed', _encode_bool(true));
         }
@@ -266,13 +319,11 @@ sub _write_xml_root {
     my $node = shift;
     my $kdbx = $self->kdbx;
 
-    my $is_locked = $kdbx->is_locked;
-    my $guard = Scope::Guard->new(sub { $kdbx->lock if $is_locked });
-    $kdbx->unlock;
+    my $guard = $kdbx->unlock_scoped;
 
-    if (my $group = $kdbx->{root}) {
+    if (my $group = $kdbx->root) {
         my $group_node = $node->addNewChild(undef, 'Group');
-        $self->_write_xml_group($group_node, $group);
+        $self->_write_xml_group($group_node, $group->_confirmed);
     }
 
     undef $guard;   # re-lock if needed, as early as possible
@@ -311,14 +362,14 @@ sub _write_xml_group {
         ) : (),
     );
 
-    for my $entry (@{$group->{entries} || []}) {
+    for my $entry (@{$group->entries}) {
         my $entry_node = $node->addNewChild(undef, 'Entry');
-        $self->_write_xml_entry($entry_node, $entry);
+        $self->_write_xml_entry($entry_node, $entry->_confirmed);
     }
 
-    for my $group (@{$group->{groups} || []}) {
+    for my $group (@{$group->groups}) {
         my $group_node = $node->addNewChild(undef, 'Group');
-        $self->_write_xml_group($group_node, $group);
+        $self->_write_xml_group($group_node, $group->_confirmed);
     }
 }
 
@@ -395,11 +446,11 @@ sub _write_xml_entry {
     );
 
     if (!$in_history) {
-        if (my @history = @{$entry->{history} || []}) {
+        if (my @history = @{$entry->history}) {
             my $history_node = $node->addNewChild(undef, 'History');
             for my $historical (@history) {
                 my $historical_node = $history_node->addNewChild(undef, 'Entry');
-                $self->_write_xml_entry($historical_node, $historical, 1);
+                $self->_write_xml_entry($historical_node, $historical->_confirmed, 1);
             }
         }
     }
@@ -461,7 +512,7 @@ sub _write_xml_entry_string {
     my $protect = $string->{protect} || $memory_protection->{$memprot_key};
 
     if ($protect) {
-        if ($self->protect) {
+        if ($self->allow_protection) {
             my $encoded;
             if (utf8::is_utf8($value)) {
                 $encoded = encode('UTF-8', $value);

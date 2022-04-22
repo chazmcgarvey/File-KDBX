@@ -7,6 +7,7 @@ use strict;
 use Crypt::Digest qw(digest_data);
 use File::KDBX::Constants qw(:cipher :random_stream);
 use File::KDBX::Error;
+use Scalar::Util qw(blessed);
 use Module::Load;
 use namespace::clean;
 
@@ -42,27 +43,49 @@ sub init {
     return $self;
 }
 
+=method crypt
+
+    $ciphertext = $cipher->crypt($plaintext);
+    $plaintext = $cipher->crypt($ciphertext);
+
+Encrypt or decrypt some data. These ciphers are symmetric, so encryption and decryption are the same
+operation. This method is an alias for both L<File::KDBX::Cipher/encrypt> and L<File::KDBX::Cipher/decrypt>.
+
+=cut
+
 sub crypt {
     my $self = shift;
     my $stream = $self->_stream;
     return join('', map { $stream->crypt(ref $_ ? $$_ : $_) } grep { defined } @_);
 }
 
+=method keystream
+
+    $stream = $cipher->keystream;
+
+Access the keystream.
+
+=cut
+
 sub keystream {
     my $self = shift;
     return $self->_stream->keystream(@_);
 }
 
+=method dup
+
+    $cipher_copy = $cipher->dup(%attributes);
+
+Get a copy of an existing cipher with the counter reset, optionally applying new attributes.
+
+=cut
+
 sub dup {
-    my $self = shift;
-    my $dup = File::KDBX::Cipher->new(
-        stream_id   => $self->stream_id,
-        key         => $self->key,
-        @_,
-    );
-    $dup->{key} = $self->key;
-    $dup->{iv} = $self->iv;
-    # FIXME - probably turn this into a proper clone method
+    my $self    = shift;
+    my $class   = blessed($self);
+
+    my $dup = bless {%$self, @_}, $class;
+    delete $dup->{stream};
     return $dup;
 }
 
@@ -101,16 +124,29 @@ sub decrypt { goto &crypt }
 
 sub finish { delete $_[0]->{stream}; '' }
 
-sub counter { $_[0]->{counter} // 0 }
-sub offset  { $_[0]->{offset} }
-
 =attr algorithm
 
+    $algorithm = $cipher->algorithm;
+
 Get the stream cipher algorithm. Can be one of C<Salsa20> and C<ChaCha>.
+
+=attr counter
+
+    $counter = $cipher->counter;
+
+Get the initial counter / block count into the keystream.
+
+=attr offset
+
+    $offset = $cipher->offset;
+
+Get the initial byte offset into the keystream. This has precedence over L</counter> if both are set.
 
 =cut
 
 sub algorithm   { $_[0]->{algorithm} or throw 'Stream cipher algorithm is not set' }
+sub counter     { $_[0]->{counter} // 0 }
+sub offset      { $_[0]->{offset} }
 sub key_size    { { Salsa20 => 32, ChaCha => 32 }->{$_[0]->{algorithm} || ''} //  0 }
 sub iv_size     { { Salsa20 =>  8, ChaCha => 12 }->{$_[0]->{algorithm} || ''} // -1 }
 sub block_size  { 1 }

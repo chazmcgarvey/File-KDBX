@@ -237,9 +237,38 @@ sub kdbx {
 
 =attr format
 
+Get the file format used for writing the database. Normally the format is auto-detected from the database,
+which is the safest choice. Possible formats:
+
+=for :list
+* C<V3>
+* C<V4>
+* C<KDB>
+* C<XML> (only used if explicitly set)
+* C<Raw> (only used if explicitly set)
+
+B<WARNING:> There is a potential for data loss if you explicitly use a format that doesn't support the
+features used by the KDBX database being written.
+
+The most common reason to explicitly specify the file format is to save a database as an unencrypted XML file:
+
+    $kdbx->dump_file('database.xml', format => 'XML');
+
 =cut
 
 sub format { $_[0]->{format} }
+
+=attr inner_format
+
+Get the format of the data inside the KDBX envelope. This only applies to C<V3> and C<V4> formats. Possible
+formats:
+
+=for :list
+* C<XML> - Write the database groups and entries as XML (default)
+* C<Raw> - Write L<File::KDBX/raw> instead of the actual database contents
+
+=cut
+
 sub inner_format { $_[0]->{inner_format} // 'XML' }
 
 =attr min_version
@@ -255,7 +284,29 @@ To generate older KDBX files unsupported by this module, try L<File::KeePass>.
 
 sub min_version { KDBX_VERSION_OLDEST }
 
-sub upgrade { $_[0]->{upgrade} // 1 }
+=attr allow_upgrade
+
+    $bool = $dumper->allow_upgrade;
+
+Whether or not to allow implicitly upgrading a database to a newer version. When enabled, in order to avoid
+potential data loss, the database can be upgraded as-needed in cases where the database file format version is
+too low to support new features being used.
+
+The default is to allow upgrading.
+
+=cut
+
+sub allow_upgrade { $_[0]->{allow_upgrade} // 1 }
+
+=attr randomize_seeds
+
+    $bool = $dumper->randomize_seeds;
+
+Whether or not to randomize seeds in a database before writing. The default is to randomize seeds, and there's
+not often a good reason not to do so. If disabled, the seeds associated with the KDBX database will be used as
+they are.
+
+=cut
 
 sub randomize_seeds { $_[0]->{randomize_seeds} // 1 }
 
@@ -269,7 +320,7 @@ sub _dump {
     my $kdbx = $self->kdbx;
 
     my $min_version = $kdbx->minimum_version;
-    if ($kdbx->version < $min_version && $self->upgrade) {
+    if ($kdbx->version < $min_version && $self->allow_upgrade) {
         alert sprintf("Implicitly upgrading database from %x to %x\n", $kdbx->version, $min_version),
             version => $kdbx->version, min_version => $min_version;
         $kdbx->version($min_version);

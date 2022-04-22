@@ -11,8 +11,8 @@ use File::KDBX::Constants qw(:history :icon);
 use File::KDBX::Error;
 use File::KDBX::Util qw(:function :uri generate_uuid load_optional);
 use Hash::Util::FieldHash;
-use List::Util qw(sum0);
-use Ref::Util qw(is_plain_hashref);
+use List::Util qw(first sum0);
+use Ref::Util qw(is_coderef is_plain_hashref);
 use Scalar::Util qw(looks_like_number);
 use Storable qw(dclone);
 use Time::Piece;
@@ -170,9 +170,7 @@ sub uuid {
         for my $entry (@{$self->history}) {
             $entry->{uuid} = $uuid;
         }
-        # if (defined $old_uuid and my $kdbx = $KDBX{$self}) {
-        #     $kdbx->_update_entry_uuid($old_uuid, $uuid, $self);
-        # }
+        $self->_signal('uuid.changed', $uuid, $old_uuid) if defined $old_uuid && $self->is_current;
     }
     $self->{uuid};
 }
@@ -180,7 +178,7 @@ sub uuid {
 my @ATTRS = qw(uuid custom_data history);
 my %ATTRS = (
     # uuid                    => sub { generate_uuid(printable => 1) },
-    icon_id                 => ICON_PASSWORD,
+    icon_id                 => sub { defined $_[1] ? icon($_[1]) : ICON_PASSWORD },
     custom_icon_uuid        => undef,
     foreground_color        => '',
     background_color        => '',
@@ -195,13 +193,13 @@ my %ATTRS = (
     # history                 => sub { +[] },
 );
 my %ATTRS_TIMES = (
-    last_modification_time  => sub { gmtime },
-    creation_time           => sub { gmtime },
-    last_access_time        => sub { gmtime },
-    expiry_time             => sub { gmtime },
+    last_modification_time  => sub { scalar gmtime },
+    creation_time           => sub { scalar gmtime },
+    last_access_time        => sub { scalar gmtime },
+    expiry_time             => sub { scalar gmtime },
     expires                 => false,
     usage_count             => 0,
-    location_changed        => sub { gmtime },
+    location_changed        => sub { scalar gmtime },
 );
 my %ATTRS_STRINGS = (
     title                   => 'Title',
@@ -211,12 +209,16 @@ my %ATTRS_STRINGS = (
     notes                   => 'Notes',
 );
 
-while (my ($attr, $default) = each %ATTRS) {
+while (my ($attr, $setter) = each %ATTRS) {
     no strict 'refs'; ## no critic (ProhibitNoStrict)
-    *{$attr} = sub {
+    *{$attr} = is_coderef $setter ? sub {
+        my $self = shift;
+        $self->{$attr} = $setter->($self, shift) if @_;
+        $self->{$attr} //= $setter->($self);
+    } : sub {
         my $self = shift;
         $self->{$attr} = shift if @_;
-        $self->{$attr} //= (ref $default eq 'CODE') ? $default->($self) : $default;
+        $self->{$attr} //= $setter;
     };
 }
 while (my ($attr, $default) = each %ATTRS_TIMES) {
@@ -798,25 +800,83 @@ sub prune_history {
     }
 }
 
-sub add_history {
+=method add_historical_entry
+
+    $entry->add_historical_entry($entry);
+
+Add an entry to the history.
+
+=cut
+
+sub add_historical_entry {
     my $self = shift;
     delete $_->{history} for @_;
     push @{$self->{history} //= []}, map { $self->_wrap_entry($_) } @_;
 }
 
+=method current_entry
+
+    $current_entry = $entry->current_entry;
+
+Get an entry's current entry. If the entry itself is current (not historical), itself is returned.
+
+=cut
+
+sub current_entry {
+    my $self    = shift;
+    my $group   = $self->parent;
+
+    if ($group) {
+        my $id = $self->uuid;
+        my $entry = first { $id eq $_->uuid } @{$group->entries};
+        return $entry if $entry;
+    }
+
+    return $self;
+}
+
+=method is_current
+
+    $bool = $entry->is_current;
+
+Get whether or not an entry is considered current (i.e. not historical). An entry is current if it is directly
+in the parent group's entry list.
+
+=cut
+
+sub is_current {
+    my $self    = shift;
+    my $current = $self->current_entry;
+    return Hash::Util::FieldHash::id($self) == Hash::Util::FieldHash::id($current);
+}
+
+=method is_historical
+
+    $bool = $entry->is_historical;
+
+Get whether or not an entry is considered historical (i.e. not current).
+
+This is just the inverse of L</is_current>.
+
+=cut
+
+sub is_historical { !$_[0]->is_current }
+
 ##############################################################################
 
-sub begin_work {
+sub _signal {
     my $self = shift;
-    require File::KDBX::Transaction;
-    return File::KDBX::Transaction->new($self, @_);
+    my $type = shift;
+    return $self->SUPER::_signal("entry.$type", @_);
 }
 
 sub _commit {
     my $self = shift;
-    my $txn  = shift;
-    $self->add_history($txn->original);
-    $self->last_modification_time(gmtime);
+    my $orig = shift;
+    $self->add_historical_entry($orig);
+    my $time = gmtime;
+    $self->last_modification_time($time);
+    $self->last_access_time($time);
 }
 
 sub label { shift->expanded_title(@_) }
@@ -843,6 +903,8 @@ whatever purpose you want.
 There is also some metadata associated with an entry. Each entry in a database is identified uniquely by
 a UUID. An entry can also have an icon associated with it, and there are various timestamps. Take a look at
 the attributes to see what's available.
+
+A B<File::KDBX::Entry> is a subclass of L<File::KDBX::Object>.
 
 =head2 Placeholders
 

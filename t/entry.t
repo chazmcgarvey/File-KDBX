@@ -80,11 +80,11 @@ subtest 'Custom icons' => sub {
     my $entry = File::KDBX::Entry->new(my $kdbx = File::KDBX->new, icon_id => 42);
     is $entry->custom_icon_uuid, undef, 'UUID is undef if no custom icon is set';
     is $entry->custom_icon, undef, 'Icon is undef if no custom icon is set';
-    is $entry->icon_id, 42, 'Default icon is set to something';
+    is $entry->icon_id, 'KCMMemory', 'Default icon is set to something';
 
     is $entry->custom_icon($gif), $gif, 'Setting a custom icon returns icon';
     is $entry->custom_icon, $gif, 'Henceforth the icon is set';
-    is $entry->icon_id, 0, 'Default icon got changed to first icon';
+    is $entry->icon_id, 'Password', 'Default icon got changed to first icon';
     my $uuid = $entry->custom_icon_uuid;
     isnt $uuid, undef, 'UUID is now set';
 
@@ -94,6 +94,41 @@ subtest 'Custom icons' => sub {
     is $entry->custom_icon(undef), undef, 'Unsetting a custom icon returns undefined';
     $found = $entry->kdbx->custom_icon_data($uuid);
     is $found, $gif, 'Custom icon still exists in the database';
+};
+
+subtest 'History' => sub {
+    my $kdbx = File::KDBX->new;
+    my $entry = $kdbx->add_entry(label => 'Foo');
+    is scalar @{$entry->history}, 0, 'New entry starts with no history';
+    is $entry->current_entry, $entry, 'Current new entry is itself';
+    ok $entry->is_current, 'New entry is current';
+
+    my $txn = $entry->begin_work;
+    $entry->notes('Hello!');
+    $txn->commit;
+    is scalar @{$entry->history}, 1, 'Committing creates a historical entry';
+    ok $entry->is_current, 'New entry is still current';
+    ok $entry->history->[0]->is_historical, 'Historical entry is not current';
+    is $entry->notes, 'Hello!', 'New entry is modified after commit';
+    is $entry->history->[0]->notes, '', 'Historical entry is saved without modification';
+};
+
+subtest 'Update UUID' => sub {
+    my $kdbx = File::KDBX->new;
+
+    my $entry1 = $kdbx->add_entry(label => 'Foo');
+    my $entry2 = $kdbx->add_entry(label => 'Bar');
+
+    $entry2->url(sprintf('{REF:T@I:%s} {REF:T@I:%s}', $entry1->id, lc($entry1->id)));
+    is $entry2->expanded_url, 'Foo Foo', 'Field reference expands'
+        or diag explain $entry2->url;
+
+    $entry1->uuid("\1" x 16);
+
+    is $entry2->url, '{REF:T@I:01010101010101010101010101010101} {REF:T@I:01010101010101010101010101010101}',
+        'Replace field references when an entry UUID is changed';
+    is $entry2->expanded_url, 'Foo Foo', 'Field reference expands after UUID is changed'
+        or diag explain $entry2->url;
 };
 
 done_testing;

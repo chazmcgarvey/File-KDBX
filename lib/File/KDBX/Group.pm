@@ -10,7 +10,7 @@ use File::KDBX::Error;
 use File::KDBX::Util qw(generate_uuid);
 use Hash::Util::FieldHash;
 use List::Util qw(sum0);
-use Ref::Util qw(is_ref);
+use Ref::Util qw(is_coderef is_ref);
 use Scalar::Util qw(blessed);
 use Time::Piece;
 use boolean;
@@ -28,7 +28,7 @@ my %ATTRS = (
     name                        => '',
     notes                       => '',
     tags                        => '',
-    icon_id                     => ICON_FOLDER,
+    icon_id                     => sub { defined $_[1] ? icon($_[1]) : ICON_FOLDER },
     custom_icon_uuid            => undef,
     is_expanded                 => false,
     default_auto_type_sequence  => '',
@@ -41,21 +41,25 @@ my %ATTRS = (
     # groups                      => sub { +[] },
 );
 my %ATTRS_TIMES = (
-    last_modification_time  => sub { gmtime },
-    creation_time           => sub { gmtime },
-    last_access_time        => sub { gmtime },
-    expiry_time             => sub { gmtime },
+    last_modification_time  => sub { scalar gmtime },
+    creation_time           => sub { scalar gmtime },
+    last_access_time        => sub { scalar gmtime },
+    expiry_time             => sub { scalar gmtime },
     expires                 => false,
     usage_count             => 0,
-    location_changed        => sub { gmtime },
+    location_changed        => sub { scalar gmtime },
 );
 
-while (my ($attr, $default) = each %ATTRS) {
+while (my ($attr, $setter) = each %ATTRS) {
     no strict 'refs'; ## no critic (ProhibitNoStrict)
-    *{$attr} = sub {
+    *{$attr} = is_coderef $setter ? sub {
+        my $self = shift;
+        $self->{$attr} = $setter->($self, shift) if @_;
+        $self->{$attr} //= $setter->($self);
+    } : sub {
         my $self = shift;
         $self->{$attr} = shift if @_;
-        $self->{$attr} //= (ref $default eq 'CODE') ? $default->($self) : $default;
+        $self->{$attr} //= $setter;
     };
 }
 while (my ($attr, $default) = each %ATTRS_TIMES) {
@@ -78,9 +82,7 @@ sub uuid {
         my %args = @_ % 2 == 1 ? (uuid => shift, @_) : @_;
         my $old_uuid = $self->{uuid};
         my $uuid = $self->{uuid} = delete $args{uuid} // generate_uuid;
-        # if (defined $old_uuid and my $kdbx = $KDBX{$self}) {
-        #     $kdbx->_update_group_uuid($old_uuid, $uuid, $self);
-        # }
+        $self->_signal('uuid.changed', $uuid, $old_uuid) if defined $old_uuid;
     }
     $self->{uuid};
 }
@@ -306,6 +308,19 @@ etc. A group not in a database tree structure returns a depth of -1.
 sub depth { $_[0]->is_root ? 0 : (scalar @{$_[0]->lineage || []} || -1) }
 
 sub label { shift->name(@_) }
+
+sub _signal {
+    my $self = shift;
+    my $type = shift;
+    return $self->SUPER::_signal("group.$type", @_);
+}
+
+sub _commit {
+    my $self = shift;
+    my $time = gmtime;
+    $self->last_modification_time($time);
+    $self->last_access_time($time);
+}
 
 1;
 __END__

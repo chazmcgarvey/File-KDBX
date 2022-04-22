@@ -29,7 +29,7 @@ our %EXPORT_TAGS = (
     gzip        => [qw(gzip gunzip)],
     io          => [qw(is_readable is_writable read_all)],
     load        => [qw(load_optional load_xs try_load_optional)],
-    search      => [qw(query search simple_expression_query)],
+    search      => [qw(query search search_limited simple_expression_query)],
     text        => [qw(snakify trim)],
     uuid        => [qw(format_uuid generate_uuid is_uuid uuid)],
     uri         => [qw(split_url uri_escape_utf8 uri_unescape_utf8)],
@@ -348,6 +348,7 @@ See L</erase>.
 =cut
 
 sub erase_scoped {
+    throw 'Programmer error: Cannot call erase_scoped in void context' if !defined wantarray;
     my @args;
     for (@_) {
         !is_ref($_) || is_arrayref($_) || is_hashref($_) || is_scalarref($_)
@@ -618,7 +619,6 @@ This is the search engine described with many examples at L<File::KDBX/QUERY>.
 sub search {
     my $list    = shift;
     my $query   = shift;
-    # my %args    = @_;
 
     if (is_coderef($query) && !@_) {
         # already a query
@@ -630,12 +630,32 @@ sub search {
         $query = query($query, @_);
     }
 
-    # my $limit = $args{limit};
+    my @match;
+    for my $item (@$list) {
+        push @match, $item if $query->($item);
+    }
+    return \@match;
+}
+
+sub search_limited {
+    my $list    = shift;
+    my $query   = shift;
+    my $limit   = shift // 1;
+
+    if (is_coderef($query) && !@_) {
+        # already a query
+    }
+    elsif (is_scalarref($query)) {
+        $query = simple_expression_query($$query, @_);
+    }
+    else {
+        $query = query($query, @_);
+    }
 
     my @match;
     for my $item (@$list) {
         push @match, $item if $query->($item);
-        # last if defined $limit && $limit <= @match;
+        last if $limit <= @match;
     }
     return \@match;
 }

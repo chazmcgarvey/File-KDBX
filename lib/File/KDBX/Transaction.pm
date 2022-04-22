@@ -9,38 +9,65 @@ use namespace::clean;
 
 our $VERSION = '999.999'; # VERSION
 
+=method new
+
+    $txn = File::KDBX::Transaction->new($object);
+
+Construct a new database transaction for editing an object atomically.
+
+=cut
+
 sub new {
-    my $class = shift;
-    my $object = shift;
-    my $orig   = shift // $object->clone;
-    return bless {object => $object, original => $orig}, $class;
+    my $class   = shift;
+    my $object  = shift;
+    $object->begin_work(@_);
+    return bless {object => $object}, $class;
 }
 
 sub DESTROY { !in_global_destruction and $_[0]->rollback }
 
-sub object   { $_[0]->{object} }
-sub original { $_[0]->{original} }
+=attr object
+
+Get the object being transacted on.
+
+=cut
+
+sub object { $_[0]->{object} }
+
+=method commit
+
+    $txn->commit;
+
+Commit the transaction, making updates to the L</object> permanent.
+
+=cut
 
 sub commit {
     my $self = shift;
+    return if $self->{done};
+
     my $obj = $self->object;
-    if (my $commit = $obj->can('_commit')) {
-        $commit->($obj, $self);
-    }
-    $self->{committed} = 1;
+    $obj->commit;
+    $self->{done} = 1;
     return $obj;
 }
 
+=method rollback
+
+    $txn->rollback;
+
+Roll back the transaction, throwing away any updates to the L</object> made since the transaction began. This
+happens automatically when the transaction is released, unless it has already been committed.
+
+=cut
+
 sub rollback {
     my $self = shift;
-    return if $self->{committed};
+    return if $self->{done};
 
     my $obj = $self->object;
-    my $orig = $self->original;
-
-    %$obj = ();
-    @$obj{keys %$orig} = values %$orig;
-
+    $obj->rollback;
+    $self->{done} = 1;
     return $obj;
 }
 

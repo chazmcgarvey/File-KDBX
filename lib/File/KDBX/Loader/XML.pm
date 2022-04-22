@@ -37,8 +37,6 @@ sub _read_inner_body {
     my $self = shift;
     my $fh   = shift;
 
-    # print do  { local $/; <$fh> };
-    # exit;
     my $reader = $self->{_reader} = XML::LibXML::Reader->new(IO => $fh);
 
     delete $self->{safe};

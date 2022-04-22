@@ -103,7 +103,7 @@ sub test_custom_icons {
 for my $test (
     ['Custom icons' => $kdbx],
     ['Custom icons after dump & load roundtrip'
-        => File::KDBX->load_string($kdbx->dump_string('a', upgrade => 0, randomize_seeds => 0), 'a')],
+        => File::KDBX->load_string($kdbx->dump_string('a', allow_upgrade => 0, randomize_seeds => 0), 'a')],
 ) {
     my ($name, $kdbx) = @$test;
     subtest $name, \&test_custom_icons, $kdbx;

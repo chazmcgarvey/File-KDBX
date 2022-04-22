@@ -9,7 +9,7 @@ use Devel::GlobalDestruction;
 use File::KDBX::Constants qw(:all);
 use File::KDBX::Error;
 use File::KDBX::Safe;
-use File::KDBX::Util qw(:empty erase generate_uuid search simple_expression_query snakify);
+use File::KDBX::Util qw(:empty :uuid :search erase simple_expression_query snakify);
 use Hash::Util::FieldHash qw(fieldhashes);
 use List::Util qw(any);
 use Ref::Util qw(is_ref is_arrayref is_plain_hashref);
@@ -223,31 +223,6 @@ sub user_agent_string {
         __PACKAGE__, $VERSION, @Config::Config{qw(package version osname osvers archname)});
 }
 
-=attr sig1
-
-=attr sig2
-
-=attr version
-
-=attr headers
-
-=attr inner_headers
-
-=attr meta
-
-=attr binaries
-
-=attr deleted_objects
-
-=attr raw
-
-    $value = $kdbx->$attr;
-    $kdbx->$attr($value);
-
-Get and set attributes.
-
-=cut
-
 my %ATTRS = (
     sig1            => KDBX_SIG1,
     sig2            => KDBX_SIG2_2,
@@ -283,28 +258,28 @@ my %ATTRS_META = (
     generator                       => '',
     header_hash                     => '',
     database_name                   => '',
-    database_name_changed           => sub { gmtime },
+    database_name_changed           => sub { scalar gmtime },
     database_description            => '',
-    database_description_changed    => sub { gmtime },
+    database_description_changed    => sub { scalar gmtime },
     default_username                => '',
-    default_username_changed        => sub { gmtime },
+    default_username_changed        => sub { scalar gmtime },
     maintenance_history_days        => 0,
     color                           => '',
-    master_key_changed              => sub { gmtime },
+    master_key_changed              => sub { scalar gmtime },
     master_key_change_rec           => -1,
     master_key_change_force         => -1,
     # memory_protection               => sub { +{} },
     custom_icons                    => sub { +{} },
     recycle_bin_enabled             => true,
     recycle_bin_uuid                => "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
-    recycle_bin_changed             => sub { gmtime },
+    recycle_bin_changed             => sub { scalar gmtime },
     entry_templates_group           => "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
-    entry_templates_group_changed   => sub { gmtime },
+    entry_templates_group_changed   => sub { scalar gmtime },
     last_selected_group             => "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
     last_top_visible_group          => "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0",
     history_max_items               => HISTORY_DEFAULT_MAX_ITEMS,
     history_max_size                => HISTORY_DEFAULT_MAX_SIZE,
-    settings_changed                => sub { gmtime },
+    settings_changed                => sub { scalar gmtime },
     # binaries                        => sub { +{} },
     # custom_data                     => sub { +{} },
 );
@@ -314,38 +289,8 @@ my %ATTRS_MEMORY_PROTECTION = (
     protect_password            => true,
     protect_url                 => false,
     protect_notes               => false,
-    auto_enable_visual_hiding   => false,
+    # auto_enable_visual_hiding   => false,
 );
-
-sub _update_group_uuid {
-    my $self        = shift;
-    my $old_uuid    = shift // return;
-    my $new_uuid    = shift;
-
-    my $meta = $self->meta;
-    $self->recycle_bin_uuid($new_uuid) if $old_uuid eq ($meta->{recycle_bin_uuid} // '');
-    $self->entry_templates_group($new_uuid) if $old_uuid eq ($meta->{entry_templates_group} // '');
-    $self->last_selected_group($new_uuid) if $old_uuid eq ($meta->{last_selected_group} // '');
-    $self->last_top_visible_group($new_uuid) if $old_uuid eq ($meta->{last_top_visible_group} // '');
-
-    for my $group (@{$self->all_groups}) {
-        $group->last_top_visible_entry($new_uuid) if $old_uuid eq ($group->{last_top_visible_entry} // '');
-        $group->previous_parent_group($new_uuid) if $old_uuid eq ($group->{previous_parent_group} // '');
-    }
-    for my $entry (@{$self->all_entries}) {
-        $entry->previous_parent_group($new_uuid) if $old_uuid eq ($entry->{previous_parent_group} // '');
-    }
-}
-
-sub _update_entry_uuid {
-    my $self        = shift;
-    my $old_uuid    = shift // return;
-    my $new_uuid    = shift;
-
-    for my $entry (@{$self->all_entries}) {
-        $entry->previous_parent_group($new_uuid) if $old_uuid eq ($entry->{previous_parent_group} // '');
-    }
-}
 
 while (my ($attr, $default) = each %ATTRS) {
     no strict 'refs'; ## no critic (ProhibitNoStrict)
@@ -519,7 +464,7 @@ Every database has only a single root group at a time. Some old KDB files might 
 When reading such files, a single implicit root group is created to contain the other explicit groups. When
 writing to such a format, if the root group looks like it was implicitly created then it won't be written and
 the resulting file might have multiple root groups. This allows working with older files without changing
-their written internal structure while still adhering to the modern restrictions while the database is opened.
+their written internal structure while still adhering to modern semantics while the database is opened.
 
 B<WARNING:> The root group of a KDBX database contains all of the database's entries and other groups. If you
 replace the root group, you are essentially replacing the entire database contents with something else.
@@ -770,7 +715,13 @@ sub find_entries {
         search      => $args{search},
         history     => $args{history},
     );
-    return @{search($self->all_entries(%all_entries), is_arrayref($query) ? @$query : $query)};
+    my $limit = delete $args{limit};
+    if (defined $limit) {
+        return @{search_limited($self->all_entries(%all_entries), is_arrayref($query) ? @$query : $query, $limit)};
+    }
+    else {
+        return @{search($self->all_entries(%all_entries), is_arrayref($query) ? @$query : $query)};
+    }
 }
 
 sub find_entries_simple {
@@ -1055,15 +1006,16 @@ sub resolve_reference {
         P   => 'expanded_password',
         A   => 'expanded_url',
         N   => 'expanded_notes',
-        I   => 'id',
+        I   => 'uuid',
         O   => 'other_strings',
     );
     $wanted     = $fields{$wanted} or return;
     $search_in  = $fields{$search_in} or return;
 
-    my $query = simple_expression_query($text, ($search_in eq 'id' ? 'eq' : '=~'), $search_in);
+    my $query = $search_in eq 'uuid' ? query($search_in => uuid($text))
+                                     : simple_expression_query($text, '=~', $search_in);
 
-    my ($entry) = $self->find_entries($query);
+    my ($entry) = $self->find_entries($query, limit => 1);
     $entry or return;
 
     return $entry->$wanted;
@@ -1190,13 +1142,6 @@ itself to allow method chaining.
 
 =cut
 
-sub peek {
-    my $self = shift;
-    my $string = shift;
-    my $safe = $self->_safe or return;
-    return $safe->peek($string);
-}
-
 sub unlock {
     my $self = shift;
     my $safe = $self->_safe or return $self;
@@ -1207,14 +1152,43 @@ sub unlock {
     return $self;
 }
 
-# sub unlock_scoped {
-#     my $self = shift;
-#     return if !$self->is_locked;
-#     require Scope::Guard;
-#     my $guard = Scope::Guard->new(sub { $self->lock });
-#     $self->unlock;
-#     return $guard;
-# }
+=method unlock_scoped
+
+    $guard = $kdbx->unlock_scoped;
+
+Unlock a database temporarily, relocking when the guard is released (typically at the end of a scope). Returns
+C<undef> if the database is already unlocked.
+
+See L</lock> and L</unlock>.
+
+=cut
+
+sub unlock_scoped {
+    throw 'Programmer error: Cannot call unlock_scoped in void context' if !defined wantarray;
+    my $self = shift;
+    return if !$self->is_locked;
+    require Scope::Guard;
+    my $guard = Scope::Guard->new(sub { $self->lock });
+    $self->unlock;
+    return $guard;
+}
+
+=method peek
+
+    $string = $kdbx->peek(\%string);
+    $string = $kdbx->peek(\%binary);
+
+Peek at the value of a protected string or binary without unlocking the whole database. The argument can be
+a string or binary hashref as returned by L<File::KDBX::Entry/string> or L<File::KDBX::Entry/binary>.
+
+=cut
+
+sub peek {
+    my $self = shift;
+    my $string = shift;
+    my $safe = $self->_safe or return;
+    return $safe->peek($string);
+}
 
 =method is_locked
 
@@ -1460,6 +1434,64 @@ sub check {
 #   - Duplicate window associations (OFF)
 #   - Only one root group (ON)
   # - Header UUIDs match known ciphers/KDFs?
+}
+
+#########################################################################################
+
+sub _handle_signal {
+    my $self    = shift;
+    my $object  = shift;
+    my $type    = shift;
+
+    my %handlers = (
+        'entry.uuid.changed'    => \&_update_entry_uuid,
+        'group.uuid.changed'    => \&_update_group_uuid,
+    );
+    my $handler = $handlers{$type} or return;
+    $self->$handler($object, @_);
+}
+
+sub _update_group_uuid {
+    my $self        = shift;
+    my $object      = shift;
+    my $new_uuid    = shift;
+    my $old_uuid    = shift // return;
+
+    my $meta = $self->meta;
+    $self->recycle_bin_uuid($new_uuid) if $old_uuid eq ($meta->{recycle_bin_uuid} // '');
+    $self->entry_templates_group($new_uuid) if $old_uuid eq ($meta->{entry_templates_group} // '');
+    $self->last_selected_group($new_uuid) if $old_uuid eq ($meta->{last_selected_group} // '');
+    $self->last_top_visible_group($new_uuid) if $old_uuid eq ($meta->{last_top_visible_group} // '');
+
+    for my $group (@{$self->all_groups}) {
+        $group->last_top_visible_entry($new_uuid) if $old_uuid eq ($group->{last_top_visible_entry} // '');
+        $group->previous_parent_group($new_uuid) if $old_uuid eq ($group->{previous_parent_group} // '');
+    }
+    for my $entry (@{$self->all_entries}) {
+        $entry->previous_parent_group($new_uuid) if $old_uuid eq ($entry->{previous_parent_group} // '');
+    }
+}
+
+sub _update_entry_uuid {
+    my $self        = shift;
+    my $object      = shift;
+    my $new_uuid    = shift;
+    my $old_uuid    = shift // return;
+
+    my $old_pretty = format_uuid($old_uuid);
+    my $new_pretty = format_uuid($new_uuid);
+    my $fieldref_match = qr/\{REF:([TUPANI])\@I:\Q$old_pretty\E\}/is;
+
+    for my $entry (@{$self->all_entries}) {
+        $entry->previous_parent_group($new_uuid) if $old_uuid eq ($entry->{previous_parent_group} // '');
+
+        for my $string (values %{$entry->strings}) {
+            next if !defined $string->{value} || $string->{value} !~ $fieldref_match;
+            my $txn = $entry->begin_work;
+            $string->{value} =~ s/$fieldref_match/{REF:$1\@I:$new_pretty}/g;
+            $txn->commit;
+        }
+    }
 }
 
 #########################################################################################
@@ -2144,5 +2176,28 @@ when trying to use such features with undersized IVs.
 
 L<File::KeePass> is a much older alternative. It's good but has a backlog of bugs and lacks support for newer
 KDBX features.
+
+=attr sig1
+
+=attr sig2
+
+=attr version
+
+=attr headers
+
+=attr inner_headers
+
+=attr meta
+
+=attr binaries
+
+=attr deleted_objects
+
+=attr raw
+
+    $value = $kdbx->$attr;
+    $kdbx->$attr($value);
+
+Get and set attributes.
 
 =cut

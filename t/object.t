@@ -32,7 +32,7 @@ subtest 'Cloning' => sub {
     $txn->commit;
 
     $copy = $entry->clone;
-    is @{$copy->history}, 1, 'Copy has a historical entry';
+    is @{$copy->history}, 1, 'Copy has a historical entry' or dumper $copy->history;
     cmp_deeply $copy, $entry, 'Entry with history and its clone are identical';
 
     $copy = $entry->clone(history => 0);
@@ -86,6 +86,93 @@ subtest 'Cloning' => sub {
     is @{$kdbx->all_entries}, 6, 'Copy a group within parent doubles the number of entries in the database';
     isnt $group->entries->[0]->uuid, $copy->entries->[0]->uuid,
         'First entry in group and its copy are different';
+};
+
+subtest 'Transactions' => sub {
+    my $kdbx = File::KDBX->new;
+
+    my $root    = $kdbx->root;
+    my $entry   = $kdbx->add_entry(
+        label => 'One',
+        last_modification_time => Time::Piece->strptime('2022-04-20', '%Y-%m-%d'),
+        username => 'Fred',
+    );
+
+    my $txn = $root->begin_work;
+    $root->label('Toor');
+    $root->notes('');
+    $txn->commit;
+    is $root->label, 'Toor', 'Retain change to root label after commit';
+
+    $root->begin_work;
+    $root->label('Root');
+    $entry->label('Zap');
+    $root->rollback;
+    is $root->label, 'Toor', 'Undo change to root label after rollback';
+    is $entry->label, 'Zap', 'Retain change to entry after rollback';
+
+    $txn = $root->begin_work(entries => 1);
+    $root->label('Root');
+    $entry->label('Zippy');
+    undef $txn; # implicit rollback
+    is $root->label, 'Toor', 'Undo change to root label after implicit rollback';
+    is $entry->label, 'Zap', 'Undo change to entry after rollback with deep transaction';
+
+    $txn = $entry->begin_work;
+    my $mtime = $entry->last_modification_time;
+    my $username = $entry->string('UserName');
+    $username->{meh} = 'hi';
+    $entry->username('jinx');
+    $txn->rollback;
+    is $entry->string('UserName'), $username, 'Rollback keeps original references';
+    is $entry->last_modification_time, $mtime, 'No last modification time change after rollback';
+
+    $txn = $entry->begin_work;
+    $entry->username('jinx');
+    $txn->commit;
+    isnt $entry->last_modification_time, $mtime, 'Last modification time changes after commit';
+
+    {
+        my $txn1 = $root->begin_work;
+        $root->label('alien');
+        {
+            my $txn2 = $root->begin_work;
+            $root->label('truth');
+            $txn2->commit;
+        }
+    }
+    is $root->label, 'Toor', 'Changes thrown away after rolling back outer transaction';
+
+    {
+        my $txn1 = $root->begin_work;
+        $root->label('alien');
+        {
+            my $txn2 = $root->begin_work;
+            $root->label('truth');
+        }
+        $txn1->commit;
+    }
+    is $root->label, 'alien', 'Keep committed change after rolling back inner transaction';
+
+    {
+        my $txn1 = $root->begin_work;
+        $root->label('alien');
+        {
+            my $txn2 = $root->begin_work;
+            $root->label('truth');
+            $txn2->commit;
+        }
+        $txn1->commit;
+    }
+    is $root->label, 'truth', 'Keep committed change from inner transaction';
+
+    $txn = $root->begin_work;
+    $root->label('Lalala');
+    my $dump = $kdbx->dump_string('a');
+    $txn->commit;
+    is $root->label, 'Lalala', 'Keep committed label change after dump';
+    my $load = File::KDBX->load_string($dump, 'a');
+    is $load->root->label, 'truth', 'Object dumped before committing matches the pre-transaction state';
 };
 
 done_testing;

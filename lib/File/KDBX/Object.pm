@@ -8,13 +8,14 @@ use Devel::GlobalDestruction;
 use File::KDBX::Error;
 use File::KDBX::Util qw(:uuid);
 use Hash::Util::FieldHash qw(fieldhashes);
-use Ref::Util qw(is_arrayref is_plain_hashref is_ref);
+use List::Util qw(first);
+use Ref::Util qw(is_arrayref is_plain_arrayref is_plain_hashref is_ref);
 use Scalar::Util qw(blessed weaken);
 use namespace::clean;
 
 our $VERSION = '999.999'; # VERSION
 
-fieldhashes \my (%KDBX, %PARENT);
+fieldhashes \my (%KDBX, %PARENT, %TXNS, %REFS, %SIGNALS);
 
 =method new
 
@@ -210,9 +211,10 @@ sub STORABLE_thaw {
                 local $CLONE{history}               = 1;
                 local $CLONE{reference_password}    = 0;
                 local $CLONE{reference_username}    = 0;
+                # Clone only the entry's data and manually bless to avoid infinite recursion.
                 bless Storable::dclone({%$copy}), 'File::KDBX::Entry';
             };
-            my $txn = $self->begin_work($clone_obj);
+            my $txn = $self->begin_work(snapshot => $clone_obj);
             if ($CLONE{reference_password}) {
                 $self->password("{REF:P\@I:$uuid}");
             }
@@ -223,6 +225,9 @@ sub STORABLE_thaw {
         }
         $self->uuid(generate_uuid) if $CLONE{new_uuid};
     }
+
+    # Dualvars aren't cloned as dualvars, so dualify the icon.
+    $self->icon_id($self->{icon_id}) if defined $self->{icon_id};
 }
 
 =attr kdbx
@@ -279,12 +284,10 @@ Get the parent group to which an object belongs or C<undef> if it belongs to no 
 
 sub group {
     my $self = shift;
-    my $addr = Hash::Util::FieldHash::id($self);
+    my $id   = Hash::Util::FieldHash::id($self);
     if (my $group = $PARENT{$self}) {
         my $method = $self->_parent_container;
-        for my $object (@{$group->$method}) {
-            return $group if $addr == Hash::Util::FieldHash::id($object);
-        }
+        return $group if first { $id == Hash::Util::FieldHash::id($_) } @{$group->$method};
         delete $PARENT{$self};
     }
     # always get lineage from root to leaf because the other way requires parent, so it would be recursive
@@ -464,6 +467,216 @@ sub custom_data_value {
     return $data->{value};
 }
 
+##############################################################################
+
+sub _signal {
+    my $self = shift;
+    my $type = shift;
+
+    if ($self->_in_txn) {
+        my $stack = $self->_signal_stack;
+        my $queue = $stack->[-1];
+        push @$queue, [$type, @_];
+    }
+
+    $self->_signal_send([[$type, @_]]);
+}
+
+sub _signal_stack { $SIGNALS{$_[0]} //= [] }
+
+sub _signal_begin_work {
+    my $self = shift;
+    push @{$self->_signal_stack}, [];
+}
+
+sub _signal_commit {
+    my $self = shift;
+    my $signals = pop @{$self->_signal_stack};
+    my $previous = $self->_signal_stack->[-1] // [];
+    push @$previous, @$signals;
+    return $previous;
+}
+
+sub _signal_rollback {
+    my $self = shift;
+    pop @{$self->_signal_stack};
+}
+
+sub _signal_send {
+    my $self    = shift;
+    my $signals = shift // [];
+
+    my $kdbx = $KDBX{$self} or return;
+
+    # de-duplicate, keeping the most recent signal for each type
+    my %seen;
+    my @signals = grep { !$seen{$_->[0]}++ } reverse @$signals;
+
+    for my $sig (reverse @signals) {
+        $kdbx->_handle_signal($self, @$sig);
+    }
+}
+
+##############################################################################
+
+=method begin_work
+
+    $txn = $object->begin_work(%options);
+    $object->begin_work(%options);
+
+Begin a new transaction. Returns a L<File::KDBX::Transaction> object that can be scoped to ensure a rollback
+occurs if exceptions are thrown. Alternatively, if called in void context, there will be no
+B<File::KDBX::Transaction> and it is instead your responsibility to call L</commit> or L</rollback> as
+appropriate. It is undefined behavior to call these if a B<File::KDBX::Transaction> exists. Recursive
+transactions are allowed.
+
+Signals created during a transaction are delayed until all transactions are resolved. If the outermost
+transaction is committed, then the signals are de-duplicated and delivered. Otherwise the signals are dropped.
+This means that the KDBX database will not fix broken references or mark itself dirty until after the
+transaction is committed.
+
+How it works: With the beginning of a transaction, a snapshot of the object is created. In the event of
+a rollback, the object's data is replaced with data from the snapshot.
+
+By default, the snapshot is shallow (i.e. does not include subroups, entries or historical entries). This
+means that only modifications to the object itself (its data, fields, strings, etc.) are atomic; modifications
+to subroups etc., including adding or removing items, are auto-committed instantly and will persist regardless
+of the result of the pending transaction. You can override this for groups, entries and history independently
+using options:
+
+=for :list
+* C<entries> - If set, snapshot entries within a group, deeply (default: false)
+* C<groups> - If set, snapshot subroups within a group, deeply (default: false)
+* C<history> - If set, snapshot historical entries within an entry (default: false)
+
+For example, if you begin a transaction on a group object using the C<entries> option, like this:
+
+    $group->begin_work(entries => 1);
+
+Then if you modify any of the group's entries OR add new entries OR delete entries, all of that will be undone
+if the transaction is rolled back. With a default-configured transaction, however, changes to entries are kept
+even if the transaction is rolled back.
+
+=cut
+
+sub begin_work {
+    my $self = shift;
+
+    if (defined wantarray) {
+        require File::KDBX::Transaction;
+        return File::KDBX::Transaction->new($self, @_);
+    }
+
+    my %args = @_;
+    my $orig = $args{snapshot} // do {
+        my $c = $self->clone(
+            entries => $args{entries} // 0,
+            groups  => $args{groups}  // 0,
+            history => $args{history} // 0,
+        );
+        $c->{entries} = $self->{entries} if !$args{entries};
+        $c->{groups}  = $self->{groups}  if !$args{groups};
+        $c->{history} = $self->{history} if !$args{history};
+        $c;
+    };
+
+    my $id = Hash::Util::FieldHash::id($orig);
+    _save_references($id, $self, $orig);
+
+    $self->_signal_begin_work;
+
+    push @{$self->_txns}, $orig;
+}
+
+=method commit
+
+    $object->commit;
+
+Commit a transaction, making updates to C<$object> permanent. Returns itself to allow method chaining.
+
+=cut
+
+sub commit {
+    my $self = shift;
+    my $orig = pop @{$self->_txns} or return $self;
+    $self->_commit($orig);
+    my $signals = $self->_signal_commit;
+    $self->_signal_send($signals) if !$self->_in_txn;
+    return $self;
+}
+
+sub _commit { die 'Not implemented' }
+sub _in_txn { scalar @{$_[0]->_txns} }
+sub _txns   { $TXNS{$_[0]} //= [] }
+
+=method rollback
+
+    $object->rollback;
+
+Roll back the most recent transaction, throwing away any updates to the L</object> made since the transaction
+began. Returns itself to allow method chaining.
+
+=cut
+
+sub rollback {
+    my $self = shift;
+
+    my $orig = pop @{$self->_txns} or return $self;
+
+    my $id = Hash::Util::FieldHash::id($orig);
+    _restore_references($id, $orig);
+
+    $self->_signal_rollback;
+
+    return $self;
+}
+
+sub _save_references {
+    my $id   = shift;
+    my $self = shift;
+    my $orig = shift;
+
+    if (is_plain_arrayref($orig)) {
+        for (my $i = 0; $i < @$orig; ++$i) {
+            _save_references($id, $self->[$i], $orig->[$i]);
+        }
+        $REFS{$id}{Hash::Util::FieldHash::id($orig)} = $self;
+    }
+    elsif (is_plain_hashref($orig) || (blessed $orig && $orig->isa(__PACKAGE__))) {
+        for my $key (keys %$orig) {
+            _save_references($id, $self->{$key}, $orig->{$key});
+        }
+        $REFS{$id}{Hash::Util::FieldHash::id($orig)} = $self;
+    }
+}
+
+sub _restore_references {
+    my $id   = shift;
+    my $orig = shift // return;
+    my $self = delete $REFS{$id}{Hash::Util::FieldHash::id($orig) // ''} // return $orig;
+
+    if (is_plain_arrayref($orig)) {
+        @$self = map { _restore_references($id, $_) } @$orig;
+    }
+    elsif (is_plain_hashref($orig) || (blessed $orig && $orig->isa(__PACKAGE__))) {
+        for my $key (keys %$orig) {
+            # next if is_ref($orig->{$key}) &&
+            #     (Hash::Util::FieldHash::id($self->{$key}) // 0) == Hash::Util::FieldHash::id($orig->{$key});
+            $self->{$key} = _restore_references($id, $orig->{$key});
+        }
+    }
+
+    return $self;
+}
+
+sub _confirmed {
+    my $self = shift;
+    my ($orig) = @{$self->_txns};
+    return $orig // $self;
+}
+
+##############################################################################
+
 sub _wrap_group {
     my $self  = shift;
     my $group = shift;
@@ -495,5 +708,41 @@ but instead use its subclasses:
 * L<File::KDBX::Group>
 
 There is some functionality shared by both types of objects, and that's what this class provides.
+
+Each object can be associated with a L<File::KDBX> database or be disassociated. A disassociated object will
+not be persisted when dumping a database. It is also possible for an object to be associated with a database
+but not be part of the object tree (i.e. is not the root group or any subroup or entry). A disassociated
+object or an object not part of the object tree of a database can be added to a database using one of:
+
+=for :list
+* L<File::KDBX/add_entry>
+* L<File::KDBX/add_group>
+* L<File::KDBX::Group/add_entry>
+* L<File::KDBX::Group/add_group>
+* L<File::KDBX::Entry/add_historical_entry>
+
+It is possible to copy or move objects between databases, but you B<DO NOT> include the same object in more
+than one database at once or there could some strange aliasing effects (i.e. changes in one database might
+effect another in unexpected ways). This could lead to difficult-to-debug problems. It is similarly not safe
+or valid to add the same object multiple times to the same database. For example:
+
+    my $entry = File::KDBX::Entry->(title => 'Whatever');
+
+    # DO NOT DO THIS:
+    $kdbx->add_entry($entry);
+    $another_kdbx->add_entry($entry);
+
+    # DO NOT DO THIS:
+    $kdbx->add_entry($entry);
+    $kdbx->add_entry($entry); # again
+
+Instead, do this:
+
+    # Copy an entry to multiple databases:
+    $kdbx->add_entry($entry);
+    $another_kdbx->add_entry($entry->clone);
+
+    # OR move an existing entry from one database to another:
+    $kdbx->add_entry($entry->remove);
 
 =cut
