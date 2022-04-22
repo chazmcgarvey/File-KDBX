@@ -19,8 +19,8 @@ our $VERSION = '999.999'; # VERSION
 my $FORK_OPTIMIZATION_THRESHOLD = 100_000;
 
 BEGIN {
-    my $use_fork = $ENV{NO_FORK} || !can_fork ? FALSE : TRUE;
-    *_USE_FORK = sub() { $use_fork };
+    my $use_fork = $ENV{NO_FORK} || !can_fork;
+    *_USE_FORK = $use_fork ? \&TRUE : \&FALSE;
 }
 
 sub init {
