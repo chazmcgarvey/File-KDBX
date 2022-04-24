@@ -21,7 +21,7 @@ our $VERSION = '999.999'; # VERSION
 
 our %EXPORT_TAGS = (
     assert      => [qw(assert_64bit)],
-    class       => [qw(extends has)],
+    class       => [qw(extends has list_attributes)],
     clone       => [qw(clone clone_nomagic)],
     coercion    => [qw(to_bool to_number to_string to_time to_tristate to_uuid)],
     crypt       => [qw(pad_pkcs7)],
@@ -85,6 +85,7 @@ my %OP_NEG = (
     '=~'    =>  '!~',
     '!~'    =>  '=~',
 );
+my %ATTRIBUTES;
 
 =func load_xs
 
@@ -405,9 +406,14 @@ sub has {
     my $has_default = is_coderef $default;
     my $has_coerce  = is_coderef $coerce;
 
+    my $store = $args{store};
+    ($store, $name) = split(/\./, $name, 2) if $name =~ /\./;
+
     my $caller = caller;
+    push @{$ATTRIBUTES{$caller} //= []}, $name;
+
     no strict 'refs'; ## no critic (ProhibitNoStrict)
-    if (my $store = $args{store}) {
+    if ($store) {
         *{"${caller}::${name}"} = $is eq 'ro' && $has_default ? sub {
             $_[0]->$store->{$name} //= scalar $default->($_[0]);
         } : $is eq 'ro' ? sub {
@@ -573,6 +579,19 @@ Check if a thing is a UUID (i.e. scalar string of length 16).
 =cut
 
 sub is_uuid { defined $_[0] && !is_ref($_[0]) && length($_[0]) == 16 }
+
+=func list_attributes
+
+    @attributes = list_attributes($package);
+
+Get a list of attributes for a class.
+
+=cut
+
+sub list_attributes {
+    my $package = shift;
+    return @{$ATTRIBUTES{$package} // []};
+}
 
 =func load_optional
 

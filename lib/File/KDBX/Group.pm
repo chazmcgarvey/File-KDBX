@@ -22,48 +22,35 @@ our $VERSION = '999.999'; # VERSION
 
 sub _parent_container { 'groups' }
 
-my @ATTRS = qw(uuid custom_data entries groups icon_id);
-my %ATTRS = (
-    # uuid                        => sub { generate_uuid(printable => 1) },
-    name                        => ['', coerce => \&to_string],
-    notes                       => ['', coerce => \&to_string],
-    tags                        => ['', coerce => \&to_string],
-    # icon_id                     => sub { defined $_[1] ? icon($_[1]) : ICON_FOLDER },
-    custom_icon_uuid            => [undef, coerce => \&to_uuid],
-    is_expanded                 => [false, coerce => \&to_bool],
-    default_auto_type_sequence  => ['', coerce => \&to_string],
-    enable_auto_type            => [undef, coerce => \&to_tristate],
-    enable_searching            => [undef, coerce => \&to_tristate],
-    last_top_visible_entry      => [undef, coerce => \&to_uuid],
-    # custom_data                 => {},
-    previous_parent_group       => [undef, coerce => \&to_uuid],
-    # entries                     => [],
-    # groups                      => [],
-    times                       => [{}],
-);
+# has uuid                        => sub { generate_uuid(printable => 1) };
+has name                        => '',          coerce => \&to_string;
+has notes                       => '',          coerce => \&to_string;
+has tags                        => '',          coerce => \&to_string;
+has icon_id                     => ICON_FOLDER, coerce => \&to_icon_constant;
+has custom_icon_uuid            => undef,       coerce => \&to_uuid;
+has is_expanded                 => false,       coerce => \&to_bool;
+has default_auto_type_sequence  => '',          coerce => \&to_string;
+has enable_auto_type            => undef,       coerce => \&to_tristate;
+has enable_searching            => undef,       coerce => \&to_tristate;
+has last_top_visible_entry      => undef,       coerce => \&to_uuid;
+# has custom_data                 => {};
+has previous_parent_group       => undef,       coerce => \&to_uuid;
+# has entries                     => [];
+# has groups                      => [];
+has times                       => {};
 
-my %ATTRS_TIMES = (
-    last_modification_time  => [sub { gmtime }, coerce => \&to_time],
-    creation_time           => [sub { gmtime }, coerce => \&to_time],
-    last_access_time        => [sub { gmtime }, coerce => \&to_time],
-    expiry_time             => [sub { gmtime }, coerce => \&to_time],
-    expires                 => [false,          coerce => \&to_bool],
-    usage_count             => [0,              coerce => \&to_number],
-    location_changed        => [sub { gmtime }, coerce => \&to_time],
-);
+has last_modification_time  => sub { gmtime }, store => 'times', coerce => \&to_time;
+has creation_time           => sub { gmtime }, store => 'times', coerce => \&to_time;
+has last_access_time        => sub { gmtime }, store => 'times', coerce => \&to_time;
+has expiry_time             => sub { gmtime }, store => 'times', coerce => \&to_time;
+has expires                 => false,          store => 'times', coerce => \&to_bool;
+has usage_count             => 0,              store => 'times', coerce => \&to_number;
+has location_changed        => sub { gmtime }, store => 'times', coerce => \&to_time;
 
-has icon_id => ICON_FOLDER, coerce => sub { icon($_[0]) };
-
-while (my ($attr, $default) = each %ATTRS) {
-    has $attr => @$default;
-}
-while (my ($attr, $default) = each %ATTRS_TIMES) {
-    has $attr => @$default, store => 'times';
-}
-
-sub _set_default_attributes {
+my @ATTRS = qw(uuid custom_data entries groups);
+sub _set_nonlazy_attributes {
     my $self = shift;
-    $self->$_ for @ATTRS, keys %ATTRS, keys %ATTRS_TIMES;
+    $self->$_ for @ATTRS, list_attributes(ref $self);
 }
 
 sub uuid {

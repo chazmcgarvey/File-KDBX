@@ -42,7 +42,7 @@ sub _read_header {
         $buf .= $val;
     }
 
-    $type = kdbx_header($type);
+    $type = to_header_constant($type);
     if ($type == HEADER_END) {
         # done
     }

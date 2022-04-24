@@ -40,7 +40,7 @@ sub new {
 
     my $self = bless {}, $class;
     $self->init(@_);
-    $self->_set_default_attributes if empty $self;
+    $self->_set_nonlazy_attributes if empty $self;
     return $self;
 }
 
@@ -119,6 +119,9 @@ sub STORABLE_thaw {
     @$self{keys %$clone} = values %$clone;
     $KEYS{$self} = $key;
     $SAFE{$self} = $safe;
+
+    # Dualvars aren't cloned as dualvars, so coerce the compression flags.
+    $self->compression_flags($self->compression_flags);
 
     for my $object (@{$self->all_groups}, @{$self->all_entries(history => 1)}) {
         $object->kdbx($self);
@@ -223,99 +226,82 @@ sub user_agent_string {
         __PACKAGE__, $VERSION, @Config::Config{qw(package version osname osvers archname)});
 }
 
-my %ATTRS = (
-    sig1            => [KDBX_SIG1, coerce => \&to_number],
-    sig2            => [KDBX_SIG2_2, coerce => \&to_number],
-    version         => [KDBX_VERSION_3_1, coerce => \&to_number],
-    headers         => [{}],
-    inner_headers   => [{}],
-    meta            => [{}],
-    binaries        => [{}],
-    deleted_objects => [{}],
-    raw             => [undef, coerce => \&to_string],
-);
-my %ATTRS_HEADERS = (
-    HEADER_COMMENT()                    => ['', coerce => \&to_string],
-    HEADER_CIPHER_ID()                  => [CIPHER_UUID_CHACHA20, coerce => \&to_uuid],
-    HEADER_COMPRESSION_FLAGS()          => [COMPRESSION_GZIP, coerce => sub { compression($_[0]) }],
-    HEADER_MASTER_SEED()                => [sub { random_bytes(32) }, coerce => \&to_string],
-    # HEADER_TRANSFORM_SEED()             => sub { random_bytes(32) },
-    # HEADER_TRANSFORM_ROUNDS()           => 100_000,
-    HEADER_ENCRYPTION_IV()              => [sub { random_bytes(16) }, coerce => \&to_string],
-    # HEADER_INNER_RANDOM_STREAM_KEY()    => sub { random_bytes(32) }, # 64?
-    HEADER_STREAM_START_BYTES()         => [sub { random_bytes(32) }, coerce => \&to_string],
-    # HEADER_INNER_RANDOM_STREAM_ID()     => STREAM_ID_CHACHA20,
-    HEADER_KDF_PARAMETERS()             => [sub {
-        +{
-            KDF_PARAM_UUID()        => KDF_UUID_AES,
-            KDF_PARAM_AES_ROUNDS()  => $_[0]->headers->{+HEADER_TRANSFORM_ROUNDS} // KDF_DEFAULT_AES_ROUNDS,
-            KDF_PARAM_AES_SEED()    => $_[0]->headers->{+HEADER_TRANSFORM_SEED} // random_bytes(32),
-        };
-    }],
-    # HEADER_PUBLIC_CUSTOM_DATA()        => sub { +{} },
-);
-my %ATTRS_META = (
-    generator                       => ['', coerce => \&to_string],
-    header_hash                     => ['', coerce => \&to_string],
-    database_name                   => ['', coerce => \&to_string],
-    database_name_changed           => [sub { gmtime }, coerce => \&to_time],
-    database_description            => ['', coerce => \&to_string],
-    database_description_changed    => [sub { gmtime }, coerce => \&to_time],
-    default_username                => ['', coerce => \&to_string],
-    default_username_changed        => [sub { gmtime }, coerce => \&to_time],
-    maintenance_history_days        => [0, coerce => \&to_number],
-    color                           => ['', coerce => \&to_string],
-    master_key_changed              => [sub { gmtime }, coerce => \&to_time],
-    master_key_change_rec           => [-1, coerce => \&to_number],
-    master_key_change_force         => [-1, coerce => \&to_number],
-    # memory_protection               => {},
-    custom_icons                    => [{}],
-    recycle_bin_enabled             => [true, coerce => \&to_bool],
-    recycle_bin_uuid                => ["\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", coerce => \&to_uuid],
-    recycle_bin_changed             => [sub { gmtime }, coerce => \&to_time],
-    entry_templates_group           => ["\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", coerce => \&to_uuid],
-    entry_templates_group_changed   => [sub { gmtime }, coerce => \&to_time],
-    last_selected_group             => ["\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", coerce => \&to_uuid],
-    last_top_visible_group          => ["\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", coerce => \&to_uuid],
-    history_max_items               => [HISTORY_DEFAULT_MAX_ITEMS, coerce => \&to_number],
-    history_max_size                => [HISTORY_DEFAULT_MAX_SIZE, coerce => \&to_number],
-    settings_changed                => [sub { gmtime }, coerce => \&to_time],
-    # binaries                        => {},
-    # custom_data                     => {},
-);
-my %ATTRS_MEMORY_PROTECTION = (
-    protect_title               => [false, coerce => \&to_bool],
-    protect_username            => [false, coerce => \&to_bool],
-    protect_password            => [true,  coerce => \&to_bool],
-    protect_url                 => [false, coerce => \&to_bool],
-    protect_notes               => [false, coerce => \&to_bool],
-    # auto_enable_visual_hiding   => false,
-);
+has sig1            => KDBX_SIG1,        coerce => \&to_number;
+has sig2            => KDBX_SIG2_2,      coerce => \&to_number;
+has version         => KDBX_VERSION_3_1, coerce => \&to_number;
+has headers         => {};
+has inner_headers   => {};
+has meta            => {};
+has binaries        => {};
+has deleted_objects => {};
+has raw             => coerce => \&to_string;
 
-while (my ($attr, $default) = each %ATTRS) {
-    has $attr => @$default;
-}
-while (my ($attr, $default) = each %ATTRS_HEADERS) {
-    has $attr => @$default, store => 'headers';
-}
-while (my ($attr, $default) = each %ATTRS_META) {
-    has $attr => @$default, store => 'meta';
-}
-while (my ($attr, $default) = each %ATTRS_MEMORY_PROTECTION) {
-    has $attr => @$default, store => 'memory_protection';
-}
+# HEADERS
+has 'headers.comment'               => '', coerce => \&to_string;
+has 'headers.cipher_id'             => CIPHER_UUID_CHACHA20, coerce => \&to_uuid;
+has 'headers.compression_flags'     => COMPRESSION_GZIP, coerce => \&to_compression_constant;
+has 'headers.master_seed'           => sub { random_bytes(32) }, coerce => \&to_string;
+has 'headers.encryption_iv'         => sub { random_bytes(16) }, coerce => \&to_string;
+has 'headers.stream_start_bytes'    => sub { random_bytes(32) }, coerce => \&to_string;
+has 'headers.kdf_parameters'        => sub {
+    +{
+        KDF_PARAM_UUID()        => KDF_UUID_AES,
+        KDF_PARAM_AES_ROUNDS()  => $_[0]->headers->{+HEADER_TRANSFORM_ROUNDS} // KDF_DEFAULT_AES_ROUNDS,
+        KDF_PARAM_AES_SEED()    => $_[0]->headers->{+HEADER_TRANSFORM_SEED} // random_bytes(32),
+    };
+};
+# has 'headers.transform_seed'            => sub { random_bytes(32) };
+# has 'headers.transform_rounds'          => 100_000;
+# has 'headers.inner_random_stream_key'   => sub { random_bytes(32) }; # 64 ?
+# has 'headers.inner_random_stream_id'    => STREAM_ID_CHACHA20;
+# has 'headers.public_custom_data'        => {};
 
-my @ATTRS_OTHER = (
+# META
+has 'meta.generator'                        => '',                          coerce => \&to_string;
+has 'meta.header_hash'                      => '',                          coerce => \&to_string;
+has 'meta.database_name'                    => '',                          coerce => \&to_string;
+has 'meta.database_name_changed'            => sub { gmtime },              coerce => \&to_time;
+has 'meta.database_description'             => '',                          coerce => \&to_string;
+has 'meta.database_description_changed'     => sub { gmtime },              coerce => \&to_time;
+has 'meta.default_username'                 => '',                          coerce => \&to_string;
+has 'meta.default_username_changed'         => sub { gmtime },              coerce => \&to_time;
+has 'meta.maintenance_history_days'         => 0,                           coerce => \&to_number;
+has 'meta.color'                            => '',                          coerce => \&to_string;
+has 'meta.master_key_changed'               => sub { gmtime },              coerce => \&to_time;
+has 'meta.master_key_change_rec'            => -1,                          coerce => \&to_number;
+has 'meta.master_key_change_force'          => -1,                          coerce => \&to_number;
+# has 'meta.memory_protection'                => {};
+has 'meta.custom_icons'                     => {};
+has 'meta.recycle_bin_enabled'              => true,                        coerce => \&to_bool;
+has 'meta.recycle_bin_uuid'                 => "\0" x 16,                   coerce => \&to_uuid;
+has 'meta.recycle_bin_changed'              => sub { gmtime },              coerce => \&to_time;
+has 'meta.entry_templates_group'            => "\0" x 16,                   coerce => \&to_uuid;
+has 'meta.entry_templates_group_changed'    => sub { gmtime },              coerce => \&to_time;
+has 'meta.last_selected_group'              => "\0" x 16,                   coerce => \&to_uuid;
+has 'meta.last_top_visible_group'           => "\0" x 16,                   coerce => \&to_uuid;
+has 'meta.history_max_items'                => HISTORY_DEFAULT_MAX_ITEMS,   coerce => \&to_number;
+has 'meta.history_max_size'                 => HISTORY_DEFAULT_MAX_SIZE,    coerce => \&to_number;
+has 'meta.settings_changed'                 => sub { gmtime },              coerce => \&to_time;
+# has 'meta.binaries'                         => {};
+# has 'meta.custom_data'                      => {};
+
+has 'memory_protection.protect_title'       => false,   coerce => \&to_bool;
+has 'memory_protection.protect_username'    => false,   coerce => \&to_bool;
+has 'memory_protection.protect_password'    => true,    coerce => \&to_bool;
+has 'memory_protection.protect_url'         => false,   coerce => \&to_bool;
+has 'memory_protection.protect_notes'       => false,   coerce => \&to_bool;
+# has 'memory_protection.auto_enable_visual_hiding'   => false;
+
+my @ATTRS = (
     HEADER_TRANSFORM_SEED,
     HEADER_TRANSFORM_ROUNDS,
     HEADER_INNER_RANDOM_STREAM_KEY,
     HEADER_INNER_RANDOM_STREAM_ID,
     HEADER_PUBLIC_CUSTOM_DATA,
 );
-sub _set_default_attributes {
+sub _set_nonlazy_attributes {
     my $self = shift;
-    $self->$_ for keys %ATTRS, keys %ATTRS_HEADERS, keys %ATTRS_META, keys %ATTRS_MEMORY_PROTECTION,
-        @ATTRS_OTHER;
+    $self->$_ for list_attributes(ref $self), @ATTRS;
 }
 
 =method memory_protection

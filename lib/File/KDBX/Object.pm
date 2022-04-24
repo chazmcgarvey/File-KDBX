@@ -73,11 +73,11 @@ sub new {
 
     my $self = bless $data // {}, $class;
     $self->init(%args);
-    $self->_set_default_attributes if !$data;
+    $self->_set_nonlazy_attributes if !$data;
     return $self;
 }
 
-sub _set_default_attributes { die 'Not implemented' }
+sub _set_nonlazy_attributes { die 'Not implemented' }
 
 =method init
 

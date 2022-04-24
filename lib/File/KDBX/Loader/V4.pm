@@ -45,7 +45,7 @@ sub _read_header {
         $buf .= $val;
     }
 
-    $type = kdbx_header($type);
+    $type = to_header_constant($type);
     if ($type == HEADER_END) {
         # done
     }
@@ -225,10 +225,7 @@ sub _read_inner_header {
     my $fh   = shift;
     my $kdbx = $self->kdbx;
 
-    read_all $fh, my $buf, 5 or throw 'Expected inner header type and size',
-        compression_error   => $IO::Uncompress::Gunzip::GunzipError,
-        crypt_error         => $File::KDBX::IO::Crypt::ERROR,
-        hmac_error          => $File::KDBX::IO::HmacBLock::ERROR;
+    read_all $fh, my $buf, 5 or throw 'Expected inner header type and size';
     my ($type, $size) = unpack('C L<', $buf);
 
     my $val;
@@ -236,23 +233,18 @@ sub _read_inner_header {
         read_all $fh, $val, $size or throw 'Expected inner header value', type => $type, size => $size;
     }
 
-    my $dualtype = kdbx_inner_header($type);
-
-    if (!defined $dualtype) {
-        alert "Ignoring unknown inner header type ($type)", type => $type, size => $size, value => $val;
-        return wantarray ? ($type => $val) : $type;
-    }
-    elsif ($dualtype == INNER_HEADER_END) {
+    $type = to_inner_header_constant($type) // $type;
+    if ($type == INNER_HEADER_END) {
         # nothing
     }
-    elsif ($dualtype == INNER_HEADER_INNER_RANDOM_STREAM_ID) {
+    elsif ($type == INNER_HEADER_INNER_RANDOM_STREAM_ID) {
         $val = unpack('L<', $val);
-        $kdbx->inner_headers->{$dualtype} = $val;
+        $kdbx->inner_headers->{$type} = $val;
     }
-    elsif ($dualtype == INNER_HEADER_INNER_RANDOM_STREAM_KEY) {
-        $kdbx->inner_headers->{$dualtype} = $val;
+    elsif ($type == INNER_HEADER_INNER_RANDOM_STREAM_KEY) {
+        $kdbx->inner_headers->{$type} = $val;
     }
-    elsif ($dualtype == INNER_HEADER_BINARY) {
+    elsif ($type == INNER_HEADER_BINARY) {
         my $msize = $size - 1;
         my ($flags, $data) = unpack("C a$msize", $val);
         my $id = scalar keys %{$kdbx->binaries};
@@ -261,8 +253,12 @@ sub _read_inner_header {
             $flags & INNER_HEADER_BINARY_FLAG_PROTECT ? (protect => true) : (),
         };
     }
+    else {
+        alert "Ignoring unknown inner header type ($type)", type => $type, size => $size, value => $val;
+        return wantarray ? ($type => $val) : $type;
+    }
 
-    return wantarray ? ($dualtype => $val) : $dualtype;
+    return wantarray ? ($type => $val) : $type;
 }
 
 1;

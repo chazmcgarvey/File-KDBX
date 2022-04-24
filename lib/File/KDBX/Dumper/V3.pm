@@ -59,7 +59,7 @@ sub _write_header {
     my $type = shift;
     my $val  = shift // '';
 
-    $type = kdbx_header($type);
+    $type = to_header_constant($type);
     if ($type == HEADER_END) {
         $val = "\r\n\r\n";
     }

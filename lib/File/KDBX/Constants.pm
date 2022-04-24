@@ -274,10 +274,10 @@ BEGIN {
 }
 
 our %EXPORT_TAGS;
-push @{$EXPORT_TAGS{header}}, 'kdbx_header';
-push @{$EXPORT_TAGS{compression}}, 'compression';
-push @{$EXPORT_TAGS{inner_header}}, 'kdbx_inner_header';
-push @{$EXPORT_TAGS{icon}}, 'icon';
+push @{$EXPORT_TAGS{header}},       'to_header_constant';
+push @{$EXPORT_TAGS{compression}},  'to_compression_constant';
+push @{$EXPORT_TAGS{inner_header}}, 'to_inner_header_constant';
+push @{$EXPORT_TAGS{icon}},         'to_icon_constant';
 
 $EXPORT_TAGS{all} = [map { @$_ } values %EXPORT_TAGS];
 our @EXPORT_OK = sort @{$EXPORT_TAGS{all}};
@@ -291,13 +291,13 @@ for my $header (
 ) {
     $HEADER{$header} = $HEADER{0+$header} = $header;
 }
-sub kdbx_header { $HEADER{$_[0]} }
+sub to_header_constant { $HEADER{$_[0]} }
 
 my %COMPRESSION;
 for my $compression (COMPRESSION_NONE, COMPRESSION_GZIP) {
     $COMPRESSION{$compression} = $COMPRESSION{0+$compression} = $compression;
 }
-sub compression { $COMPRESSION{$_[0]} }
+sub to_compression_constant { $COMPRESSION{$_[0]} }
 
 my %INNER_HEADER;
 for my $inner_header (
@@ -306,7 +306,7 @@ for my $inner_header (
 ) {
     $INNER_HEADER{$inner_header} = $INNER_HEADER{0+$inner_header} = $inner_header;
 }
-sub kdbx_inner_header { $INNER_HEADER{$_[0]} }
+sub to_inner_header_constant { $INNER_HEADER{$_[0]} }
 
 my %ICON;
 for my $icon (
@@ -324,7 +324,7 @@ for my $icon (
 ) {
     $ICON{$icon} = $ICON{0+$icon} = $icon;
 }
-sub icon { $ICON{$_[0] // ''} // ICON_PASSWORD }
+sub to_icon_constant { $ICON{$_[0] // ''} // ICON_PASSWORD }
 
 1;
 __END__
@@ -406,10 +406,10 @@ Constants related to parsing and generating KDBX file headers:
 = C<HEADER_KDF_PARAMETERS>
 = C<HEADER_PUBLIC_CUSTOM_DATA>
 
-=func kdbx_header
+=func to_header_constant
 
-    $constant = kdbx_header($number);
-    $constant = kdbx_header($string);
+    $constant = to_header_constant($number);
+    $constant = to_header_constant($string);
 
 Get a header constant from an integer or string value.
 
@@ -421,10 +421,10 @@ Constants related to identifying the compression state of a file:
 = C<COMPRESSION_NONE>
 = C<COMPRESSION_GZIP>
 
-=func compression
+=func to_compression_constant
 
-    $constant = compression($number);
-    $constant = compression($string);
+    $constant = to_compression_constant($number);
+    $constant = to_compression_constant($string);
 
 Get a compression constant from an integer or string value.
 
@@ -504,10 +504,10 @@ Constants related to parsing and generating KDBX4 inner headers:
 = C<INNER_HEADER_BINARY>
 = C<INNER_HEADER_BINARY_FLAG_PROTECT>
 
-=func kdbx_inner_header
+=func to_inner_header_constant
 
-    $constant = kdbx_inner_header($number);
-    $constant = kdbx_inner_header($string);
+    $constant = to_inner_header_constant($number);
+    $constant = to_inner_header_constant($string);
 
 Get an inner header constant from an integer or string value.
 
@@ -604,10 +604,10 @@ Constants for default icons used by KeePass password safe implementations:
 = C<ICON_CERTIFICATE>
 = C<ICON_SMARTPHONE>
 
-=func icon
+=func to_icon_constant
 
-    $constant = icon($number);
-    $constant = icon($string);
+    $constant = to_icon_constant($number);
+    $constant = to_icon_constant($string);
 
 Get an icon constant from an integer or string value.
 

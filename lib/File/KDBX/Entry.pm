@@ -175,33 +175,30 @@ sub uuid {
     $self->{uuid};
 }
 
-my @ATTRS = qw(uuid custom_data history icon_id);
-my %ATTRS = (
-    # uuid                    => sub { generate_uuid(printable => 1) },
-    # icon_id                 => sub { defined $_[1] ? icon($_[1]) : ICON_PASSWORD },
-    custom_icon_uuid        => [undef,  coerce => \&to_uuid],
-    foreground_color        => ['',     coerce => \&to_string],
-    background_color        => ['',     coerce => \&to_string],
-    override_url            => ['',     coerce => \&to_string],
-    tags                    => ['',     coerce => \&to_string],
-    auto_type               => [{}],
-    previous_parent_group   => [undef,  coerce => \&to_uuid],
-    quality_check           => [true,   coerce => \&to_bool],
-    strings                 => [{}],
-    binaries                => [{}],
-    times                   => [{}],
-    # custom_data             => {},
-    # history                 => [],
-);
-my %ATTRS_TIMES = (
-    last_modification_time  => [sub { gmtime }, coerce => \&to_time],
-    creation_time           => [sub { gmtime }, coerce => \&to_time],
-    last_access_time        => [sub { gmtime }, coerce => \&to_time],
-    expiry_time             => [sub { gmtime }, coerce => \&to_time],
-    expires                 => [false,          coerce => \&to_bool],
-    usage_count             => [0,              coerce => \&to_number],
-    location_changed        => [sub { gmtime }, coerce => \&to_time],
-);
+# has uuid                    => sub { generate_uuid(printable => 1) };
+has icon_id                 => ICON_PASSWORD,   coerce => \&to_icon_constant;
+has custom_icon_uuid        => undef,           coerce => \&to_uuid;
+has foreground_color        => '',              coerce => \&to_string;
+has background_color        => '',              coerce => \&to_string;
+has override_url            => '',              coerce => \&to_string;
+has tags                    => '',              coerce => \&to_string;
+has auto_type               => {};
+has previous_parent_group   => undef,           coerce => \&to_uuid;
+has quality_check           => true,            coerce => \&to_bool;
+has strings                 => {};
+has binaries                => {};
+has times                   => {};
+# has custom_data             => {};
+# has history                 => [];
+
+has last_modification_time  => sub { gmtime }, store => 'times', coerce => \&to_time;
+has creation_time           => sub { gmtime }, store => 'times', coerce => \&to_time;
+has last_access_time        => sub { gmtime }, store => 'times', coerce => \&to_time;
+has expiry_time             => sub { gmtime }, store => 'times', coerce => \&to_time;
+has expires                 => false,          store => 'times', coerce => \&to_bool;
+has usage_count             => 0,              store => 'times', coerce => \&to_number;
+has location_changed        => sub { gmtime }, store => 'times', coerce => \&to_time;
+
 my %ATTRS_STRINGS = (
     title                   => 'Title',
     username                => 'UserName',
@@ -209,24 +206,16 @@ my %ATTRS_STRINGS = (
     url                     => 'URL',
     notes                   => 'Notes',
 );
-
-has icon_id => ICON_PASSWORD, coerce => sub { icon($_[0]) };
-
-while (my ($attr, $default) = each %ATTRS) {
-    has $attr => @$default;
-}
-while (my ($attr, $default) = each %ATTRS_TIMES) {
-    has $attr => @$default, store => 'times';
-}
 while (my ($attr, $string_key) = each %ATTRS_STRINGS) {
     no strict 'refs'; ## no critic (ProhibitNoStrict)
     *{$attr} = sub { shift->string_value($string_key, @_) };
     *{"expanded_${attr}"} = sub { shift->expanded_string_value($string_key, @_) };
 }
 
-sub _set_default_attributes {
+my @ATTRS = qw(uuid custom_data history);
+sub _set_nonlazy_attributes {
     my $self = shift;
-    $self->$_ for @ATTRS, keys %ATTRS, keys %ATTRS_TIMES, keys %ATTRS_STRINGS;
+    $self->$_ for @ATTRS, keys %ATTRS_STRINGS, list_attributes(ref $self);
 }
 
 sub init {

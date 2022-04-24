@@ -61,7 +61,7 @@ sub _write_header {
     my $type = shift;
     my $val  = shift // '';
 
-    $type = kdbx_header($type);
+    $type = to_header_constant($type);
     if ($type == HEADER_END) {
         # nothing
     }
@@ -289,8 +289,7 @@ sub _write_inner_header {
     my $buf = pack('C', $type);
     $fh->print($buf) or throw 'Failed to write inner header type';
 
-    $type = kdbx_inner_header($type);
-
+    $type = to_inner_header_constant($type);
     if ($type == INNER_HEADER_END) {
         # nothing
     }
