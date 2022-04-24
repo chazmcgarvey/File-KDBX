@@ -223,7 +223,8 @@ sub dumper {
         # boolean
         $str =~ s/bless\( do\{\\\(my \$o = ([01])\)\}, 'boolean' \)/boolean($1)/gs;
         # Time::Piece
-        $str =~ s/bless\([^\)]+?(\d+)'?,\s+\d+,?\s+\], 'Time::Piece' \)/Time::Piece->new($1)/gs;
+        $str =~ s/bless\([^\)]+?(\d+)'?,\s+\d+,?\s+\], 'Time::Piece' \),/
+            "scalar gmtime($1), # " . scalar gmtime($1)->datetime/ges;
 
         print STDERR $str if !defined wantarray;
         push @dumps, $str;
