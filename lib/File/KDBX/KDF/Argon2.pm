@@ -7,25 +7,12 @@ use strict;
 use Crypt::Argon2 qw(argon2d_raw argon2id_raw);
 use File::KDBX::Constants qw(:kdf);
 use File::KDBX::Error;
+use File::KDBX::Util qw(:class);
 use namespace::clean;
 
-use parent 'File::KDBX::KDF';
+extends 'File::KDBX::KDF';
 
 our $VERSION = '999.999'; # VERSION
-
-sub init {
-    my $self = shift;
-    my %args = @_;
-    return $self->SUPER::init(
-        KDF_PARAM_ARGON2_SALT()         => $args{+KDF_PARAM_ARGON2_SALT}        // $args{salt},
-        KDF_PARAM_ARGON2_PARALLELISM()  => $args{+KDF_PARAM_ARGON2_PARALLELISM} // $args{parallelism},
-        KDF_PARAM_ARGON2_MEMORY()       => $args{+KDF_PARAM_ARGON2_MEMORY}      // $args{memory},
-        KDF_PARAM_ARGON2_ITERATIONS()   => $args{+KDF_PARAM_ARGON2_ITERATIONS}  // $args{iterations},
-        KDF_PARAM_ARGON2_VERSION()      => $args{+KDF_PARAM_ARGON2_VERSION}     // $args{version},
-        KDF_PARAM_ARGON2_SECRET()       => $args{+KDF_PARAM_ARGON2_SECRET}      // $args{secret},
-        KDF_PARAM_ARGON2_ASSOCDATA()    => $args{+KDF_PARAM_ARGON2_ASSOCDATA}   // $args{assocdata},
-    );
-}
 
 =attr salt
 
@@ -48,6 +35,7 @@ C<version>, C<secret> and C<assocdata> are currently unused.
 =cut
 
 sub salt        { $_[0]->{+KDF_PARAM_ARGON2_SALT} or throw 'Salt is not set' }
+sub seed        { $_[0]->salt }
 sub parallelism { $_[0]->{+KDF_PARAM_ARGON2_PARALLELISM}    //= KDF_DEFAULT_ARGON2_PARALLELISM }
 sub memory      { $_[0]->{+KDF_PARAM_ARGON2_MEMORY}         //= KDF_DEFAULT_ARGON2_MEMORY }
 sub iterations  { $_[0]->{+KDF_PARAM_ARGON2_ITERATIONS}     //= KDF_DEFAULT_ARGON2_ITERATIONS }
@@ -55,7 +43,19 @@ sub version     { $_[0]->{+KDF_PARAM_ARGON2_VERSION}        //= KDF_DEFAULT_ARGO
 sub secret      { $_[0]->{+KDF_PARAM_ARGON2_SECRET} }
 sub assocdata   { $_[0]->{+KDF_PARAM_ARGON2_ASSOCDATA} }
 
-sub seed { $_[0]->salt }
+sub init {
+    my $self = shift;
+    my %args = @_;
+    return $self->SUPER::init(
+        KDF_PARAM_ARGON2_SALT()         => $args{+KDF_PARAM_ARGON2_SALT}        // $args{salt},
+        KDF_PARAM_ARGON2_PARALLELISM()  => $args{+KDF_PARAM_ARGON2_PARALLELISM} // $args{parallelism},
+        KDF_PARAM_ARGON2_MEMORY()       => $args{+KDF_PARAM_ARGON2_MEMORY}      // $args{memory},
+        KDF_PARAM_ARGON2_ITERATIONS()   => $args{+KDF_PARAM_ARGON2_ITERATIONS}  // $args{iterations},
+        KDF_PARAM_ARGON2_VERSION()      => $args{+KDF_PARAM_ARGON2_VERSION}     // $args{version},
+        KDF_PARAM_ARGON2_SECRET()       => $args{+KDF_PARAM_ARGON2_SECRET}      // $args{secret},
+        KDF_PARAM_ARGON2_ASSOCDATA()    => $args{+KDF_PARAM_ARGON2_ASSOCDATA}   // $args{assocdata},
+    );
+}
 
 sub _transform {
     my $self = shift;

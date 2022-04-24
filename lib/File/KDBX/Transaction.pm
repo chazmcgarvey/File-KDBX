@@ -5,6 +5,7 @@ use warnings;
 use strict;
 
 use Devel::GlobalDestruction;
+use File::KDBX::Util qw(:class);
 use namespace::clean;
 
 our $VERSION = '999.999'; # VERSION
@@ -32,7 +33,7 @@ Get the object being transacted on.
 
 =cut
 
-sub object { $_[0]->{object} }
+has 'object', is => 'ro';
 
 =method commit
 

@@ -10,11 +10,11 @@ use File::KDBX::Constants qw(:header :compression);
 use File::KDBX::Error;
 use File::KDBX::IO::Crypt;
 use File::KDBX::IO::HashBlock;
-use File::KDBX::Util qw(:empty :load assert_64bit erase_scoped);
+use File::KDBX::Util qw(:class :empty :load assert_64bit erase_scoped);
 use IO::Handle;
 use namespace::clean;
 
-use parent 'File::KDBX::Dumper';
+extends 'File::KDBX::Dumper';
 
 our $VERSION = '999.999'; # VERSION
 
@@ -59,7 +59,7 @@ sub _write_header {
     my $type = shift;
     my $val  = shift // '';
 
-    $type = KDBX_HEADER($type);
+    $type = kdbx_header($type);
     if ($type == HEADER_END) {
         $val = "\r\n\r\n";
     }

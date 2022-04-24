@@ -6,13 +6,13 @@ use strict;
 
 use Devel::GlobalDestruction;
 use File::KDBX::Constants qw(:bool);
-use File::KDBX::Util qw(:empty);
+use File::KDBX::Util qw(:class :empty);
 use List::Util qw(sum0);
 use Ref::Util qw(is_blessed_ref is_ref is_scalarref);
 use Symbol qw(gensym);
 use namespace::clean;
 
-use parent 'IO::Handle';
+extends 'IO::Handle';
 
 our $VERSION = '999.999'; # VERSION
 

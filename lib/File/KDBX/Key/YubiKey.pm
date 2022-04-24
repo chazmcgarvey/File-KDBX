@@ -6,13 +6,13 @@ use strict;
 
 use File::KDBX::Constants qw(:yubikey);
 use File::KDBX::Error;
-use File::KDBX::Util qw(:io pad_pkcs7);
+use File::KDBX::Util qw(:class :io pad_pkcs7);
 use IPC::Cmd 0.52 qw(run_forked);
 use Ref::Util qw(is_arrayref);
 use Symbol qw(gensym);
 use namespace::clean;
 
-use parent 'File::KDBX::Key::ChallengeResponse';
+extends 'File::KDBX::Key::ChallengeResponse';
 
 our $VERSION = '999.999'; # VERSION
 
@@ -222,40 +222,13 @@ Get or set the L<ykinfo(1)> program name or filepath. Defaults to C<$ENV{YKINFO}
 
 =cut
 
-my %ATTRS = (
-    device          => 0,
-    slot            => 1,
-    timeout         => 10,
-    pre_challenge   => undef,
-    post_challenge  => undef,
-    ykchalresp      => sub { $ENV{YKCHALRESP} || 'ykchalresp' },
-    ykinfo          => sub { $ENV{YKINFO} || 'ykinfo' },
-);
-while (my ($subname, $default) = each %ATTRS) {
-    no strict 'refs'; ## no critic (ProhibitNoStrict)
-    *{$subname} = sub {
-        my $self = shift;
-        $self->{$subname} = shift if @_;
-        $self->{$subname} //= (ref $default eq 'CODE') ? $default->($self) : $default;
-    };
-}
-
-my %INFO = (
-    serial      => undef,
-    version     => undef,
-    touch_level => undef,
-    vendor_id   => undef,
-    product_id  => undef,
-);
-while (my ($subname, $default) = each %INFO) {
-    no strict 'refs'; ## no critic (ProhibitNoStrict)
-    *{$subname} = sub {
-        my $self = shift;
-        $self->{$subname} = shift if @_;
-        defined $self->{$subname} or $self->_set_yubikey_info;
-        $self->{$subname} // $default;
-    };
-}
+has device          => 0;
+has slot            => 1;
+has timeout         => 10;
+has pre_challenge   => undef;
+has post_challenge  => undef;
+has ykchalresp      => sub { $ENV{YKCHALRESP} || 'ykchalresp' };
+has ykinfo          => sub { $ENV{YKINFO}     || 'ykinfo' };
 
 =method serial
 
@@ -274,6 +247,14 @@ Get the "touch level" value for the device associated with this key (or C<undef>
 =method product_id
 
 Get the vendor ID or product ID for the device associated with this key (or C<undef>).
+
+=cut
+
+has serial      => sub { $_[0]->_set_yubikey_info; $_[0]->{serial} };
+has version     => sub { $_[0]->_set_yubikey_info; $_[0]->{version} };
+has touch_level => sub { $_[0]->_set_yubikey_info; $_[0]->{touch_level} };
+has vendor_id   => sub { $_[0]->_set_yubikey_info; $_[0]->{vendor_id} };
+has product_id  => sub { $_[0]->_set_yubikey_info; $_[0]->{product_id} };
 
 =method name
 

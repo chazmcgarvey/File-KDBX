@@ -4,7 +4,9 @@ package File::KDBX::Dumper::Raw;
 use warnings;
 use strict;
 
-use parent 'File::KDBX::Dumper';
+use File::KDBX::Util qw(:class);
+
+extends 'File::KDBX::Dumper';
 
 our $VERSION = '999.999'; # VERSION
 

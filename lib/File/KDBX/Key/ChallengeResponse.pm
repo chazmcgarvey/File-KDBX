@@ -5,9 +5,10 @@ use warnings;
 use strict;
 
 use File::KDBX::Error;
+use File::KDBX::Util qw(:class);
 use namespace::clean;
 
-use parent 'File::KDBX::Key';
+extends 'File::KDBX::Key';
 
 our $VERSION = '999.999'; # VERSION
 

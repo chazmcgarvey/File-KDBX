@@ -7,7 +7,7 @@ use strict;
 use Devel::GlobalDestruction;
 use File::KDBX::Constants qw(:cipher :random_stream);
 use File::KDBX::Error;
-use File::KDBX::Util qw(erase format_uuid);
+use File::KDBX::Util qw(:class erase format_uuid);
 use Module::Load;
 use Scalar::Util qw(looks_like_number);
 use namespace::clean;
@@ -15,6 +15,63 @@ use namespace::clean;
 our $VERSION = '999.999'; # VERSION
 
 my %CIPHERS;
+
+=attr uuid
+
+    $uuid = $cipher->uuid;
+
+Get the UUID if the cipher was constructed with one.
+
+=attr stream_id
+
+    $stream_id = $cipher->stream_id;
+
+Get the stream ID if the cipher was constructed with one.
+
+=attr key
+
+    $key = $cipher->key;
+
+Get the raw encryption key.
+
+=attr iv
+
+    $iv = $cipher->iv;
+
+Get the initialization vector.
+
+=attr iv_size
+
+    $size = $cipher->iv_size;
+
+Get the expected size of the initialization vector, in bytes.
+
+=attr key_size
+
+    $size = $cipher->key_size;
+
+Get the size the mode or stream expects the key to be, in bytes.
+
+=attr block_size
+
+    $size = $cipher->block_size;
+
+Get the block size, in bytes.
+
+=attr algorithm
+
+Get the symmetric cipher algorithm.
+
+=cut
+
+has 'uuid',         is => 'ro';
+has 'stream_id',    is => 'ro';
+has 'key',          is => 'ro';
+has 'iv',           is => 'ro';
+sub iv_size     {  0 }
+sub key_size    { -1 }
+sub block_size  {  0 }
+sub algorithm   { $_[0]->{algorithm} or throw 'Block cipher algorithm is not set' }
 
 =method new
 
@@ -93,76 +150,6 @@ sub init { $_[0] }
 
 sub DESTROY { !in_global_destruction and erase \$_[0]->{key} }
 
-=attr uuid
-
-    $uuid = $cipher->uuid;
-
-Get the UUID if the cipher was constructed with one.
-
-=cut
-
-sub uuid { $_[0]->{uuid} }
-
-=attr stream_id
-
-    $stream_id = $cipher->stream_id;
-
-Get the stream ID if the cipher was constructed with one.
-
-=cut
-
-sub stream_id { $_[0]->{stream_id} }
-
-=attr key
-
-    $key = $cipher->key;
-
-Get the raw encryption key.
-
-=cut
-
-sub key { $_[0]->{key} }
-
-=attr iv
-
-    $iv = $cipher->iv;
-
-Get the initialization vector.
-
-=cut
-
-sub iv { $_[0]->{iv} }
-
-=attr iv_size
-
-    $size = $cipher->iv_size;
-
-Get the expected size of the initialization vector, in bytes.
-
-=cut
-
-sub iv_size { 0 }
-
-=attr key_size
-
-    $size = $cipher->key_size;
-
-Get the size the mode or stream expects the key to be, in bytes.
-
-=cut
-
-sub key_size { -1 }
-
-=attr block_size
-
-    $size = $cipher->block_size;
-
-Get the block size, in bytes.
-
-=cut
-
-sub block_size { 0 }
-
 =method encrypt
 
     $ciphertext = $cipher->encrypt($plaintext, ...);
@@ -171,7 +158,7 @@ Encrypt some data.
 
 =cut
 
-sub encrypt { die "Not implemented" }
+sub encrypt { die 'Not implemented' }
 
 =method decrypt
 
@@ -181,7 +168,7 @@ Decrypt some data.
 
 =cut
 
-sub decrypt { die "Not implemented" }
+sub decrypt { die 'Not implemented' }
 
 =method finish
 
@@ -295,12 +282,12 @@ __END__
 
     my $cipher = File::KDBX::Cipher->new(uuid => $uuid, key => $key, iv => $iv);
 
-    my $ciphertext = $cipher->encrypt('data');
-    $ciphertext .= $cipher->encrypt('more data');
+    my $ciphertext = $cipher->encrypt('plaintext');
+    $ciphertext .= $cipher->encrypt('more plaintext');
     $ciphertext .= $cipher->finish;
 
-    my $plaintext = $cipher->decrypt('data');
-    $plaintext .= $cipher->decrypt('more data');
+    my $plaintext = $cipher->decrypt('ciphertext');
+    $plaintext .= $cipher->decrypt('more ciphertext');
     $plaintext .= $cipher->finish;
 
 =head1 DESCRIPTION

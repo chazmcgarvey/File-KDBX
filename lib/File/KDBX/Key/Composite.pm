@@ -6,12 +6,12 @@ use strict;
 
 use Crypt::Digest qw(digest_data);
 use File::KDBX::Error;
-use File::KDBX::Util qw(:erase);
+use File::KDBX::Util qw(:class :erase);
 use Ref::Util qw(is_arrayref);
 use Scalar::Util qw(blessed);
 use namespace::clean;
 
-use parent 'File::KDBX::Key';
+extends 'File::KDBX::Key';
 
 our $VERSION = '999.999'; # VERSION
 

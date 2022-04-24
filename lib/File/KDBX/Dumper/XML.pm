@@ -9,15 +9,15 @@ use Crypt::Misc 0.029 qw(encode_b64);
 use Encode qw(encode);
 use File::KDBX::Constants qw(:version :time);
 use File::KDBX::Error;
-use File::KDBX::Util qw(assert_64bit erase_scoped gzip snakify);
+use File::KDBX::Util qw(:class assert_64bit erase_scoped gzip snakify);
 use IO::Handle;
-use Scalar::Util qw(isdual looks_like_number);
+use Scalar::Util qw(blessed isdual looks_like_number);
 use Time::Piece;
 use XML::LibXML;
 use boolean;
 use namespace::clean;
 
-use parent 'File::KDBX::Dumper';
+extends 'File::KDBX::Dumper';
 
 our $VERSION = '999.999'; # VERSION
 
@@ -27,27 +27,11 @@ our $VERSION = '999.999'; # VERSION
 
 Get whether or not protected strings and binaries should be written in an encrypted stream. Default: C<TRUE>
 
-=cut
-
-sub allow_protection {
-    my $self = shift;
-    $self->{allow_protection} = shift if @_;
-    $self->{allow_protection} //= 1;
-}
-
 =attr binaries
 
     $bool = $dumper->binaries;
 
 Get whether or not binaries within the database should be written. Default: C<TRUE>
-
-=cut
-
-sub binaries {
-    my $self = shift;
-    $self->{binaries} = shift if @_;
-    $self->{binaries} //= $self->kdbx->version < KDBX_VERSION_4_0;
-}
 
 =attr compress_binaries
 
@@ -60,14 +44,6 @@ Get whether or not to compress binaries. Possible values:
 * C<FALSE> - Never compress binaries
 * C<undef> - Compress binaries if it results in smaller database sizes (default)
 
-=cut
-
-sub compress_binaries {
-    my $self = shift;
-    $self->{compress_binaries} = shift if @_;
-    $self->{compress_binaries};
-}
-
 =attr compress_datetimes
 
     $bool = $dumper->compress_datetimes;
@@ -76,14 +52,6 @@ Get whether or not to write compressed datetimes. Datetimes are traditionally wr
 string format of C<1970-01-01T00:00:00Z>, but they can also be written in a compressed form to save some
 bytes. The default is to write compressed datetimes if the KDBX file version is 4+, otherwise use the
 human-readable format.
-
-=cut
-
-sub compress_datetimes {
-    my $self = shift;
-    $self->{compress_datetimes} = shift if @_;
-    $self->{compress_datetimes};
-}
 
 =attr header_hash
 
@@ -98,6 +66,11 @@ XML files which don't have a KDBX wrapper don't have headers and so should have 
 is probably never any reason to set this manually.
 
 =cut
+
+has allow_protection => 1;
+has binaries => sub { $_[0]->kdbx->version < KDBX_VERSION_4_0 };
+has 'compress_binaries';
+has 'compress_datetimes';
 
 sub header_hash { $_[0]->{header_hash} }
 
@@ -592,7 +565,6 @@ sub _encode_bool {
 }
 
 sub _encode_datetime {
-    goto &_encode_datetime_binary if defined $_[2] && KDBX_VERSION_4_0 <= $_[2];
     local $_ = shift;
     return $_->strftime('%Y-%m-%dT%H:%M:%SZ');
 }

@@ -7,7 +7,7 @@ use strict;
 use Devel::GlobalDestruction;
 use File::KDBX::Constants qw(:icon);
 use File::KDBX::Error;
-use File::KDBX::Util qw(generate_uuid);
+use File::KDBX::Util qw(:class :coercion generate_uuid);
 use Hash::Util::FieldHash;
 use List::Util qw(sum0);
 use Ref::Util qw(is_coderef is_ref);
@@ -16,59 +16,49 @@ use Time::Piece;
 use boolean;
 use namespace::clean;
 
-use parent 'File::KDBX::Object';
+extends 'File::KDBX::Object';
 
 our $VERSION = '999.999'; # VERSION
 
 sub _parent_container { 'groups' }
 
-my @ATTRS = qw(uuid custom_data entries groups);
+my @ATTRS = qw(uuid custom_data entries groups icon_id);
 my %ATTRS = (
     # uuid                        => sub { generate_uuid(printable => 1) },
-    name                        => '',
-    notes                       => '',
-    tags                        => '',
-    icon_id                     => sub { defined $_[1] ? icon($_[1]) : ICON_FOLDER },
-    custom_icon_uuid            => undef,
-    is_expanded                 => false,
-    default_auto_type_sequence  => '',
-    enable_auto_type            => undef,
-    enable_searching            => undef,
-    last_top_visible_entry      => undef,
-    # custom_data                 => sub { +{} },
-    previous_parent_group       => undef,
-    # entries                     => sub { +[] },
-    # groups                      => sub { +[] },
-);
-my %ATTRS_TIMES = (
-    last_modification_time  => sub { scalar gmtime },
-    creation_time           => sub { scalar gmtime },
-    last_access_time        => sub { scalar gmtime },
-    expiry_time             => sub { scalar gmtime },
-    expires                 => false,
-    usage_count             => 0,
-    location_changed        => sub { scalar gmtime },
+    name                        => ['', coerce => \&to_string],
+    notes                       => ['', coerce => \&to_string],
+    tags                        => ['', coerce => \&to_string],
+    # icon_id                     => sub { defined $_[1] ? icon($_[1]) : ICON_FOLDER },
+    custom_icon_uuid            => [undef, coerce => \&to_uuid],
+    is_expanded                 => [false, coerce => \&to_bool],
+    default_auto_type_sequence  => ['', coerce => \&to_string],
+    enable_auto_type            => [undef, coerce => \&to_tristate],
+    enable_searching            => [undef, coerce => \&to_tristate],
+    last_top_visible_entry      => [undef, coerce => \&to_uuid],
+    # custom_data                 => {},
+    previous_parent_group       => [undef, coerce => \&to_uuid],
+    # entries                     => [],
+    # groups                      => [],
+    times                       => [{}],
 );
 
-while (my ($attr, $setter) = each %ATTRS) {
-    no strict 'refs'; ## no critic (ProhibitNoStrict)
-    *{$attr} = is_coderef $setter ? sub {
-        my $self = shift;
-        $self->{$attr} = $setter->($self, shift) if @_;
-        $self->{$attr} //= $setter->($self);
-    } : sub {
-        my $self = shift;
-        $self->{$attr} = shift if @_;
-        $self->{$attr} //= $setter;
-    };
+my %ATTRS_TIMES = (
+    last_modification_time  => [sub { gmtime }, coerce => \&to_time],
+    creation_time           => [sub { gmtime }, coerce => \&to_time],
+    last_access_time        => [sub { gmtime }, coerce => \&to_time],
+    expiry_time             => [sub { gmtime }, coerce => \&to_time],
+    expires                 => [false,          coerce => \&to_bool],
+    usage_count             => [0,              coerce => \&to_number],
+    location_changed        => [sub { gmtime }, coerce => \&to_time],
+);
+
+has icon_id => ICON_FOLDER, coerce => sub { icon($_[0]) };
+
+while (my ($attr, $default) = each %ATTRS) {
+    has $attr => @$default;
 }
 while (my ($attr, $default) = each %ATTRS_TIMES) {
-    no strict 'refs'; ## no critic (ProhibitNoStrict)
-    *{$attr} = sub {
-        my $self = shift;
-        $self->{times}{$attr} = shift if @_;
-        $self->{times}{$attr} //= (ref $default eq 'CODE') ? $default->($self) : $default;
-    };
+    has $attr => @$default, store => 'times';
 }
 
 sub _set_default_attributes {

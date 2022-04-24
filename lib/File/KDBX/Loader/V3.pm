@@ -22,10 +22,10 @@ use File::KDBX::Constants qw(:header :compression :kdf);
 use File::KDBX::Error;
 use File::KDBX::IO::Crypt;
 use File::KDBX::IO::HashBlock;
-use File::KDBX::Util qw(:io :load assert_64bit erase_scoped);
+use File::KDBX::Util qw(:class :io :load assert_64bit erase_scoped);
 use namespace::clean;
 
-use parent 'File::KDBX::Loader';
+extends 'File::KDBX::Loader';
 
 our $VERSION = '999.999'; # VERSION
 
@@ -42,7 +42,7 @@ sub _read_header {
         $buf .= $val;
     }
 
-    $type = KDBX_HEADER($type);
+    $type = kdbx_header($type);
     if ($type == HEADER_END) {
         # done
     }

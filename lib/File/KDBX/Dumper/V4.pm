@@ -11,17 +11,17 @@ use File::KDBX::Constants qw(:header :inner_header :compression :kdf :variant_ma
 use File::KDBX::Error;
 use File::KDBX::IO::Crypt;
 use File::KDBX::IO::HmacBlock;
-use File::KDBX::Util qw(:empty :load assert_64bit erase_scoped);
+use File::KDBX::Util qw(:class :empty :load assert_64bit erase_scoped);
 use IO::Handle;
 use Scalar::Util qw(looks_like_number);
 use boolean qw(:all);
 use namespace::clean;
 
-use parent 'File::KDBX::Dumper';
+extends 'File::KDBX::Dumper';
 
 our $VERSION = '999.999'; # VERSION
 
-sub _binaries_written { $_[0]->{_binaries_written} //= {} }
+has _binaries_written => {}, is => 'ro';
 
 sub _write_headers {
     my $self = shift;
@@ -61,7 +61,7 @@ sub _write_header {
     my $type = shift;
     my $val  = shift // '';
 
-    $type = KDBX_HEADER($type);
+    $type = kdbx_header($type);
     if ($type == HEADER_END) {
         # nothing
     }
@@ -289,7 +289,7 @@ sub _write_inner_header {
     my $buf = pack('C', $type);
     $fh->print($buf) or throw 'Failed to write inner header type';
 
-    $type = KDBX_INNER_HEADER($type);
+    $type = kdbx_inner_header($type);
 
     if ($type == INNER_HEADER_END) {
         # nothing

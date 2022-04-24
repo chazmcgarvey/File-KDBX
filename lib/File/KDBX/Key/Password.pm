@@ -7,10 +7,10 @@ use strict;
 use Crypt::Digest qw(digest_data);
 use Encode qw(encode);
 use File::KDBX::Error;
-use File::KDBX::Util qw(erase);
+use File::KDBX::Util qw(:class erase);
 use namespace::clean;
 
-use parent 'File::KDBX::Key';
+extends 'File::KDBX::Key';
 
 our $VERSION = '999.999'; # VERSION
 

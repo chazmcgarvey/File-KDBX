@@ -721,7 +721,7 @@ object or an object not part of the object tree of a database can be added to a 
 * L<File::KDBX::Group/add_group>
 * L<File::KDBX::Entry/add_historical_entry>
 
-It is possible to copy or move objects between databases, but you B<DO NOT> include the same object in more
+It is possible to copy or move objects between databases, but B<DO NOT> include the same object in more
 than one database at once or there could some strange aliasing effects (i.e. changes in one database might
 effect another in unexpected ways). This could lead to difficult-to-debug problems. It is similarly not safe
 or valid to add the same object multiple times to the same database. For example:

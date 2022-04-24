@@ -4,12 +4,12 @@ package File::KDBX::Entry;
 use warnings;
 use strict;
 
-use Crypt::Misc 0.029 qw(encode_b32r decode_b64);
+use Crypt::Misc 0.029 qw(decode_b64 encode_b32r);
 use Devel::GlobalDestruction;
 use Encode qw(encode);
 use File::KDBX::Constants qw(:history :icon);
 use File::KDBX::Error;
-use File::KDBX::Util qw(:function :uri generate_uuid load_optional);
+use File::KDBX::Util qw(:class :coercion :function :uri generate_uuid load_optional);
 use Hash::Util::FieldHash;
 use List::Util qw(first sum0);
 use Ref::Util qw(is_coderef is_plain_hashref);
@@ -19,7 +19,7 @@ use Time::Piece;
 use boolean;
 use namespace::clean;
 
-use parent 'File::KDBX::Object';
+extends 'File::KDBX::Object';
 
 our $VERSION = '999.999'; # VERSION
 
@@ -175,31 +175,32 @@ sub uuid {
     $self->{uuid};
 }
 
-my @ATTRS = qw(uuid custom_data history);
+my @ATTRS = qw(uuid custom_data history icon_id);
 my %ATTRS = (
     # uuid                    => sub { generate_uuid(printable => 1) },
-    icon_id                 => sub { defined $_[1] ? icon($_[1]) : ICON_PASSWORD },
-    custom_icon_uuid        => undef,
-    foreground_color        => '',
-    background_color        => '',
-    override_url            => '',
-    tags                    => '',
-    auto_type               => sub { +{} },
-    previous_parent_group   => undef,
-    quality_check           => true,
-    strings                 => sub { +{} },
-    binaries                => sub { +{} },
-    # custom_data             => sub { +{} },
-    # history                 => sub { +[] },
+    # icon_id                 => sub { defined $_[1] ? icon($_[1]) : ICON_PASSWORD },
+    custom_icon_uuid        => [undef,  coerce => \&to_uuid],
+    foreground_color        => ['',     coerce => \&to_string],
+    background_color        => ['',     coerce => \&to_string],
+    override_url            => ['',     coerce => \&to_string],
+    tags                    => ['',     coerce => \&to_string],
+    auto_type               => [{}],
+    previous_parent_group   => [undef,  coerce => \&to_uuid],
+    quality_check           => [true,   coerce => \&to_bool],
+    strings                 => [{}],
+    binaries                => [{}],
+    times                   => [{}],
+    # custom_data             => {},
+    # history                 => [],
 );
 my %ATTRS_TIMES = (
-    last_modification_time  => sub { scalar gmtime },
-    creation_time           => sub { scalar gmtime },
-    last_access_time        => sub { scalar gmtime },
-    expiry_time             => sub { scalar gmtime },
-    expires                 => false,
-    usage_count             => 0,
-    location_changed        => sub { scalar gmtime },
+    last_modification_time  => [sub { gmtime }, coerce => \&to_time],
+    creation_time           => [sub { gmtime }, coerce => \&to_time],
+    last_access_time        => [sub { gmtime }, coerce => \&to_time],
+    expiry_time             => [sub { gmtime }, coerce => \&to_time],
+    expires                 => [false,          coerce => \&to_bool],
+    usage_count             => [0,              coerce => \&to_number],
+    location_changed        => [sub { gmtime }, coerce => \&to_time],
 );
 my %ATTRS_STRINGS = (
     title                   => 'Title',
@@ -209,26 +210,13 @@ my %ATTRS_STRINGS = (
     notes                   => 'Notes',
 );
 
-while (my ($attr, $setter) = each %ATTRS) {
-    no strict 'refs'; ## no critic (ProhibitNoStrict)
-    *{$attr} = is_coderef $setter ? sub {
-        my $self = shift;
-        $self->{$attr} = $setter->($self, shift) if @_;
-        $self->{$attr} //= $setter->($self);
-    } : sub {
-        my $self = shift;
-        $self->{$attr} = shift if @_;
-        $self->{$attr} //= $setter;
-    };
+has icon_id => ICON_PASSWORD, coerce => sub { icon($_[0]) };
+
+while (my ($attr, $default) = each %ATTRS) {
+    has $attr => @$default;
 }
 while (my ($attr, $default) = each %ATTRS_TIMES) {
-    no strict 'refs'; ## no critic (ProhibitNoStrict)
-    *{$attr} = sub {
-        my $self = shift;
-        $self->{times} //= {};
-        $self->{times}{$attr} = shift if @_;
-        $self->{times}{$attr} //= (ref $default eq 'CODE') ? $default->($self) : $default;
-    };
+    has $attr => @$default, store => 'times';
 }
 while (my ($attr, $string_key) = each %ATTRS_STRINGS) {
     no strict 'refs'; ## no critic (ProhibitNoStrict)

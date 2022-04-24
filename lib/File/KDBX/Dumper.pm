@@ -7,6 +7,7 @@ use strict;
 use Crypt::Digest qw(digest_data);
 use File::KDBX::Constants qw(:magic :header :version :random_stream);
 use File::KDBX::Error;
+use File::KDBX::Util qw(:class);
 use File::KDBX;
 use IO::Handle;
 use Module::Load;
@@ -254,10 +255,6 @@ The most common reason to explicitly specify the file format is to save a databa
 
     $kdbx->dump_file('database.xml', format => 'XML');
 
-=cut
-
-sub format { $_[0]->{format} }
-
 =attr inner_format
 
 Get the format of the data inside the KDBX envelope. This only applies to C<V3> and C<V4> formats. Possible
@@ -266,23 +263,6 @@ formats:
 =for :list
 * C<XML> - Write the database groups and entries as XML (default)
 * C<Raw> - Write L<File::KDBX/raw> instead of the actual database contents
-
-=cut
-
-sub inner_format { $_[0]->{inner_format} // 'XML' }
-
-=attr min_version
-
-    $min_version = File::KDBX::Dumper->min_version;
-
-Get the minimum KDBX file version supported, which is 3.0 or C<0x00030000> as
-it is encoded.
-
-To generate older KDBX files unsupported by this module, try L<File::KeePass>.
-
-=cut
-
-sub min_version { KDBX_VERSION_OLDEST }
 
 =attr allow_upgrade
 
@@ -294,10 +274,6 @@ too low to support new features being used.
 
 The default is to allow upgrading.
 
-=cut
-
-sub allow_upgrade { $_[0]->{allow_upgrade} // 1 }
-
 =attr randomize_seeds
 
     $bool = $dumper->randomize_seeds;
@@ -308,7 +284,23 @@ they are.
 
 =cut
 
-sub randomize_seeds { $_[0]->{randomize_seeds} // 1 }
+has 'format',           is => 'ro';
+has 'inner_format',     is => 'ro', default => 'XML';
+has 'allow_upgrade',    is => 'ro', default => 1;
+has 'randomize_seeds',  is => 'ro', default => 1;
+
+=method min_version
+
+    $min_version = File::KDBX::Dumper->min_version;
+
+Get the minimum KDBX file version supported, which is 3.0 or C<0x00030000> as
+it is encoded.
+
+To generate older KDBX files unsupported by this module, try L<File::KeePass>.
+
+=cut
+
+sub min_version { KDBX_VERSION_OLDEST }
 
 sub _fh { $_[0]->{fh} or throw 'IO handle not set' }
 

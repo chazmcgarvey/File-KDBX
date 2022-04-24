@@ -9,22 +9,19 @@ use Encode qw(decode);
 use File::KDBX::Constants qw(:version :time);
 use File::KDBX::Error;
 use File::KDBX::Safe;
-use File::KDBX::Util qw(:text assert_64bit gunzip erase_scoped);
+use File::KDBX::Util qw(:class :text assert_64bit gunzip erase_scoped);
 use Scalar::Util qw(looks_like_number);
 use Time::Piece;
 use XML::LibXML::Reader;
 use boolean;
 use namespace::clean;
 
-use parent 'File::KDBX::Loader';
+extends 'File::KDBX::Loader';
 
 our $VERSION = '999.999'; # VERSION
 
-sub _reader { $_[0]->{_reader} }
-
-sub _binaries { $_[0]->{binaries} //= {} }
-
-sub _safe { $_[0]->{safe} //= File::KDBX::Safe->new(cipher => $_[0]->kdbx->random_stream) }
+has '_reader',  is => 'ro';
+has '_safe',    is => 'ro', default => sub { File::KDBX::Safe->new(cipher => $_[0]->kdbx->random_stream) };
 
 sub _read {
     my $self = shift;
@@ -39,7 +36,7 @@ sub _read_inner_body {
 
     my $reader = $self->{_reader} = XML::LibXML::Reader->new(IO => $fh);
 
-    delete $self->{safe};
+    delete $self->{_safe};
     my $root_done;
 
     my $pattern = XML::LibXML::Pattern->new('/KeePassFile/Meta|/KeePassFile/Root');
@@ -63,7 +60,7 @@ sub _read_inner_body {
         throw 'Failed to parse KeePass XML';
     }
 
-    $self->kdbx->_safe($self->_safe) if $self->{safe};
+    $self->kdbx->_safe($self->_safe) if $self->{_safe};
 
     $self->_resolve_binary_refs;
 }

@@ -112,18 +112,9 @@ sub details {
 
 Get the value of C<errno> when the exception was created.
 
-=cut
-
-sub errno { $_[0]->{errno} }
-
 =attr previous
 
 Get the value of C<$@> (i.e. latest exception) at the time the exception was created.
-
-
-=cut
-
-sub previous { $_[0]->{previous} }
 
 =attr trace
 
@@ -131,15 +122,16 @@ Get a stack trace indicating where in the code the exception was created.
 
 =cut
 
-sub trace { $_[0]->{trace} // [] }
-
 =attr type
 
 Get the exception type, if any.
 
 =cut
 
-sub type { $_[0]->details->{type} // '' }
+sub errno    { $_[0]->{errno} }
+sub previous { $_[0]->{previous} }
+sub trace    { $_[0]->{trace} // [] }
+sub type     { $_[0]->details->{type} // '' }
 
 =method to_string
 

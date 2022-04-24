@@ -12,14 +12,18 @@ use File::KDBX::Error;
 use List::Util 1.33 qw(any all);
 use Module::Load;
 use Ref::Util qw(is_arrayref is_coderef is_hashref is_ref is_refref is_scalarref);
-use Scalar::Util qw(blessed readonly);
+use Scalar::Util qw(blessed looks_like_number readonly);
+use Time::Piece;
+use boolean;
 use namespace::clean -except => 'import';
 
 our $VERSION = '999.999'; # VERSION
 
 our %EXPORT_TAGS = (
     assert      => [qw(assert_64bit)],
+    class       => [qw(extends has)],
     clone       => [qw(clone clone_nomagic)],
+    coercion    => [qw(to_bool to_number to_string to_time to_tristate to_uuid)],
     crypt       => [qw(pad_pkcs7)],
     debug       => [qw(dumper)],
     fork        => [qw(can_fork)],
@@ -359,6 +363,89 @@ sub erase_scoped {
     return Scope::Guard->new(sub { erase(@args) });
 }
 
+=func extends
+
+    extends $class;
+
+Set up the current module to inheret from another module.
+
+=cut
+
+sub extends {
+    my $parent  = shift;
+    my $caller  = caller;
+    load $parent;
+    no strict 'refs'; ## no critic (ProhibitNoStrict)
+    @{"${caller}::ISA"} = $parent;
+}
+
+=func has
+
+    has $name => %options;
+
+Create an attribute getter/setter. Possible options:
+
+=for :list
+* C<is> - Either "rw" (default) or "ro"
+* C<default> - Default value
+* C<coerce> - Coercive function
+
+=cut
+
+sub has {
+    my $name = shift;
+    my %args = @_ % 2 == 1 ? (default => shift, @_) : @_;
+
+    my $d = $args{default};
+    my $default = is_arrayref($d) ? sub { [%$d] } : is_hashref($d) ? sub { +{%$d} } : $d;
+    my $coerce  = $args{coerce};
+    my $is      = $args{is} || 'rw';
+
+    my $has_default = is_coderef $default;
+    my $has_coerce  = is_coderef $coerce;
+
+    my $caller = caller;
+    no strict 'refs'; ## no critic (ProhibitNoStrict)
+    if (my $store = $args{store}) {
+        *{"${caller}::${name}"} = $is eq 'ro' && $has_default ? sub {
+            $_[0]->$store->{$name} //= scalar $default->($_[0]);
+        } : $is eq 'ro' ? sub {
+            $_[0]->$store->{$name} //= $default;
+        } : $has_default && $has_coerce ? sub {
+            $#_ ? $_[0]->$store->{$name} = scalar $coerce->($_[1])
+                : $_[0]->$store->{$name} //= scalar $default->($_[0]);
+        } : $has_default ? sub {
+            $#_ ? $_[0]->$store->{$name} = $_[1]
+                : $_[0]->$store->{$name} //= scalar $default->($_[0]);
+        } : $has_coerce ? sub {
+            $#_ ? $_[0]->$store->{$name} = scalar $coerce->($_[1])
+                : $_[0]->$store->{$name} //= $default;
+        } : sub {
+            $#_ ? $_[0]->$store->{$name} = $_[1]
+                : $_[0]->$store->{$name} //= $default;
+        };
+    }
+    else {
+        *{"${caller}::${name}"} = $is eq 'ro' && $has_default ? sub {
+            $_[0]->{$name} //= scalar $default->($_[0]);
+        } : $is eq 'ro' ? sub {
+            $_[0]->{$name} //= $default;
+        } : $has_default && $has_coerce ? sub {
+            $#_ ? $_[0]->{$name} = scalar $coerce->($_[1])
+                : $_[0]->{$name} //= scalar $default->($_[0]);
+        } : $has_default ? sub {
+            $#_ ? $_[0]->{$name} = $_[1]
+                : $_[0]->{$name} //= scalar $default->($_[0]);
+        } : $has_coerce ? sub {
+            $#_ ? $_[0]->{$name} = scalar $coerce->($_[1])
+                : $_[0]->{$name} //= $default;
+        } : sub {
+            $#_ ? $_[0]->{$name} = $_[1]
+                : ($_[0]->{$name} //= $default);
+        };
+    }
+}
+
 =func format_uuid
 
     $string_uuid = format_uuid($raw_uuid);
@@ -637,6 +724,10 @@ sub search {
     return \@match;
 }
 
+=for Pod::Coverage search_limited
+
+=cut
+
 sub search_limited {
     my $list    = shift;
     my $query   = shift;
@@ -762,6 +853,39 @@ sub split_url {
     my ($username, $password) = split($auth, ':', 2);
 
     return ($scheme, $auth, $host, $port, $path, $query, $hash, $username, $password);
+}
+
+=func to_bool
+
+=func to_number
+
+=func to_string
+
+=func to_time
+
+=func to_tristate
+
+=func to_uuid
+
+Various typecasting / coercive functions.
+
+=cut
+
+sub to_bool   { $_[0] // return; boolean($_[0]) }
+sub to_number { $_[0] // return; 0+$_[0] }
+sub to_string { $_[0] // return; "$_[0]" }
+sub to_time   {
+    $_[0] // return;
+    return gmtime($_[0]) if looks_like_number($_[0]);
+    return Time::Piece->strptime($_[0], '%Y-%m-%d %H:%M:%S') if !blessed $_[0];
+    return $_[0];
+}
+sub to_tristate { $_[0] // return; boolean($_[0]) }
+sub to_uuid {
+    my $str = to_string(@_) // return;
+    return sprintf('%016s', $str) if length($str) < 16;
+    return substr($str, 0, 16) if 16 < length($str);
+    return $str;
 }
 
 =func trim

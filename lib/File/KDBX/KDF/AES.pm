@@ -8,10 +8,10 @@ use Crypt::Cipher;
 use Crypt::Digest qw(digest_data);
 use File::KDBX::Constants qw(:bool :kdf);
 use File::KDBX::Error;
-use File::KDBX::Util qw(:load can_fork);
+use File::KDBX::Util qw(:class :load can_fork);
 use namespace::clean;
 
-use parent 'File::KDBX::KDF';
+extends 'File::KDBX::KDF';
 
 our $VERSION = '999.999'; # VERSION
 
@@ -21,15 +21,6 @@ my $FORK_OPTIMIZATION_THRESHOLD = 100_000;
 BEGIN {
     my $use_fork = $ENV{NO_FORK} || !can_fork;
     *_USE_FORK = $use_fork ? \&TRUE : \&FALSE;
-}
-
-sub init {
-    my $self = shift;
-    my %args = @_;
-    return $self->SUPER::init(
-        KDF_PARAM_AES_ROUNDS()  => $args{+KDF_PARAM_AES_ROUNDS} // $args{rounds},
-        KDF_PARAM_AES_SEED()    => $args{+KDF_PARAM_AES_SEED}   // $args{seed},
-    );
 }
 
 =attr rounds
@@ -42,6 +33,15 @@ Get the number of times to run the function during transformation.
 
 sub rounds  { $_[0]->{+KDF_PARAM_AES_ROUNDS} || KDF_DEFAULT_AES_ROUNDS }
 sub seed    { $_[0]->{+KDF_PARAM_AES_SEED} }
+
+sub init {
+    my $self = shift;
+    my %args = @_;
+    return $self->SUPER::init(
+        KDF_PARAM_AES_ROUNDS()  => $args{+KDF_PARAM_AES_ROUNDS} // $args{rounds},
+        KDF_PARAM_AES_SEED()    => $args{+KDF_PARAM_AES_SEED}   // $args{seed},
+    );
+}
 
 sub _transform {
     my $self    = shift;

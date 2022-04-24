@@ -6,32 +6,14 @@ use strict;
 
 use Errno;
 use File::KDBX::Error;
-use File::KDBX::Util qw(:empty);
+use File::KDBX::Util qw(:class :empty);
 use namespace::clean;
 
-use parent 'File::KDBX::IO';
+extends 'File::KDBX::IO';
 
 our $VERSION = '999.999'; # VERSION
 our $BUFFER_SIZE = 16384;
 our $ERROR;
-
-=method new
-
-    $fh = File::KDBX::IO::Crypt->new(%attributes);
-    $fh = File::KDBX::IO::Crypt->new($fh, %attributes);
-
-Construct a new crypto IO handle.
-
-=cut
-
-sub new {
-    my $class = shift;
-    my %args = @_ % 2 == 1 ? (fh => shift, @_) : @_;
-    my $self = $class->SUPER::new;
-    $self->_fh($args{fh}) or throw 'IO handle required';
-    $self->cipher($args{cipher}) or throw 'Cipher required';
-    return $self;
-}
 
 =attr cipher
 
@@ -49,6 +31,24 @@ while (my ($attr, $default) = each %ATTRS) {
         *$self->{$attr} = shift if @_;
         *$self->{$attr} //= (ref $default eq 'CODE') ? $default->($self) : $default;
     };
+}
+
+=method new
+
+    $fh = File::KDBX::IO::Crypt->new(%attributes);
+    $fh = File::KDBX::IO::Crypt->new($fh, %attributes);
+
+Construct a new crypto IO handle.
+
+=cut
+
+sub new {
+    my $class = shift;
+    my %args = @_ % 2 == 1 ? (fh => shift, @_) : @_;
+    my $self = $class->SUPER::new;
+    $self->_fh($args{fh}) or throw 'IO handle required';
+    $self->cipher($args{cipher}) or throw 'Cipher required';
+    return $self;
 }
 
 sub _FILL {

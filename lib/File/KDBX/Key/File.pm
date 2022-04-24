@@ -9,15 +9,45 @@ use Crypt::Misc 0.029 qw(decode_b64 encode_b64);
 use Crypt::PRNG qw(random_bytes);
 use File::KDBX::Constants qw(:key_file);
 use File::KDBX::Error;
-use File::KDBX::Util qw(:erase trim);
+use File::KDBX::Util qw(:class :erase trim);
 use Ref::Util qw(is_ref is_scalarref);
 use Scalar::Util qw(openhandle);
 use XML::LibXML::Reader;
 use namespace::clean;
 
-use parent 'File::KDBX::Key';
+extends 'File::KDBX::Key';
 
 our $VERSION = '999.999'; # VERSION
+
+=attr type
+
+    $type = $key->type;
+
+Get the type of key file. Can be one of:
+
+=for :list
+* C<KEY_FILE_TYPE_BINARY>
+* C<KEY_FILE_TYPE_HEX>
+* C<KEY_FILE_TYPE_XML>
+* C<KEY_FILE_TYPE_HASHED>
+
+=attr version
+
+    $version = $key->version;
+
+Get the file version. Only applies to XML key files.
+
+=attr filepath
+
+    $filepath = $key->filepath;
+
+Get the filepath to the key file, if known.
+
+=cut
+
+has 'type',     is => 'ro';
+has 'version',  is => 'ro';
+has 'filepath', is => 'ro';
 
 =method load
 
@@ -96,42 +126,6 @@ sub reload {
     $self->init($self->{filepath}) if defined $self->{filepath};
     return $self;
 }
-
-=attr type
-
-    $type = $key->type;
-
-Get the type of key file. Can be one of:
-
-=for :list
-* C<KEY_FILE_TYPE_BINARY>
-* C<KEY_FILE_TYPE_HEX>
-* C<KEY_FILE_TYPE_XML>
-* C<KEY_FILE_TYPE_HASHED>
-
-=cut
-
-sub type { $_[0]->{type} }
-
-=attr version
-
-    $version = $key->version;
-
-Get the file version. Only applies to XML key files.
-
-=cut
-
-sub version { $_[0]->{version} }
-
-=attr filepath
-
-    $filepath = $key->filepath;
-
-Get the filepath to the key file, if known.
-
-=cut
-
-sub filepath { $_[0]->{filepath} }
 
 =method save
 

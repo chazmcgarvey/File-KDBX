@@ -7,13 +7,34 @@ use strict;
 use Crypt::Digest qw(digest_data);
 use File::KDBX::Constants qw(:cipher :random_stream);
 use File::KDBX::Error;
+use File::KDBX::Util qw(:class);
 use Scalar::Util qw(blessed);
 use Module::Load;
 use namespace::clean;
 
-use parent 'File::KDBX::Cipher';
+extends 'File::KDBX::Cipher';
 
 our $VERSION = '999.999'; # VERSION
+
+=attr counter
+
+    $counter = $cipher->counter;
+
+Get the initial counter / block count into the keystream.
+
+=attr offset
+
+    $offset = $cipher->offset;
+
+Get the initial byte offset into the keystream. This has precedence over L</counter> if both are set.
+
+=cut
+
+has 'counter',  is => 'ro', default => 0;
+has 'offset',   is => 'ro';
+sub key_size    { { Salsa20 => 32, ChaCha => 32 }->{$_[0]->{algorithm} || ''} //  0 }
+sub iv_size     { { Salsa20 =>  8, ChaCha => 12 }->{$_[0]->{algorithm} || ''} // -1 }
+sub block_size  { 1 }
 
 sub init {
     my $self = shift;
@@ -109,7 +130,7 @@ sub _stream {
         if (my $err = $@) {
             throw 'Failed to initialize stream cipher library',
                 error       => $err,
-                algorithm   => $self->algorithm,
+                algorithm   => $self->{algorithm},
                 key_length  => length($self->key),
                 iv_length   => length($self->iv),
                 iv          => unpack('H*', $self->iv),
@@ -123,33 +144,6 @@ sub encrypt { goto &crypt }
 sub decrypt { goto &crypt }
 
 sub finish { delete $_[0]->{stream}; '' }
-
-=attr algorithm
-
-    $algorithm = $cipher->algorithm;
-
-Get the stream cipher algorithm. Can be one of C<Salsa20> and C<ChaCha>.
-
-=attr counter
-
-    $counter = $cipher->counter;
-
-Get the initial counter / block count into the keystream.
-
-=attr offset
-
-    $offset = $cipher->offset;
-
-Get the initial byte offset into the keystream. This has precedence over L</counter> if both are set.
-
-=cut
-
-sub algorithm   { $_[0]->{algorithm} or throw 'Stream cipher algorithm is not set' }
-sub counter     { $_[0]->{counter} // 0 }
-sub offset      { $_[0]->{offset} }
-sub key_size    { { Salsa20 => 32, ChaCha => 32 }->{$_[0]->{algorithm} || ''} //  0 }
-sub iv_size     { { Salsa20 =>  8, ChaCha => 12 }->{$_[0]->{algorithm} || ''} // -1 }
-sub block_size  { 1 }
 
 1;
 __END__

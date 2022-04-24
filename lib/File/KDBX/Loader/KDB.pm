@@ -7,7 +7,7 @@ use strict;
 use Encode qw(encode);
 use File::KDBX::Constants qw(:header :cipher :random_stream :icon);
 use File::KDBX::Error;
-use File::KDBX::Util qw(:empty :io :uuid load_optional);
+use File::KDBX::Util qw(:class :empty :io :uuid load_optional);
 use File::KDBX;
 use Ref::Util qw(is_arrayref is_hashref);
 use Scalar::Util qw(looks_like_number);
@@ -15,7 +15,7 @@ use Time::Piece;
 use boolean;
 use namespace::clean;
 
-use parent 'File::KDBX::Loader';
+extends 'File::KDBX::Loader';
 
 our $VERSION = '999.999'; # VERSION
 

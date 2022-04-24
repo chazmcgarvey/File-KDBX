@@ -74,7 +74,7 @@ Get the seed (or salt, depending on the function).
 
 =cut
 
-sub seed { die "Not implemented" }
+sub seed { die 'Not implemented' }
 
 =method transform
 
@@ -103,7 +103,7 @@ sub transform {
     return $self->_transform($key);
 }
 
-sub _transform { die "Not implemented" }
+sub _transform { die 'Not implemented' }
 
 =method randomize_seed
 

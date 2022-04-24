@@ -22,13 +22,13 @@ use Crypt::Mac::HMAC qw(hmac);
 use Encode qw(decode);
 use File::KDBX::Constants qw(:header :inner_header :variant_map :compression);
 use File::KDBX::Error;
-use File::KDBX::Util qw(:io :load assert_64bit erase_scoped);
+use File::KDBX::Util qw(:class :io :load assert_64bit erase_scoped);
 use File::KDBX::IO::Crypt;
 use File::KDBX::IO::HmacBlock;
 use boolean;
 use namespace::clean;
 
-use parent 'File::KDBX::Loader';
+extends 'File::KDBX::Loader';
 
 our $VERSION = '999.999'; # VERSION
 
@@ -45,7 +45,7 @@ sub _read_header {
         $buf .= $val;
     }
 
-    $type = KDBX_HEADER($type);
+    $type = kdbx_header($type);
     if ($type == HEADER_END) {
         # done
     }
@@ -236,7 +236,7 @@ sub _read_inner_header {
         read_all $fh, $val, $size or throw 'Expected inner header value', type => $type, size => $size;
     }
 
-    my $dualtype = KDBX_INNER_HEADER($type);
+    my $dualtype = kdbx_inner_header($type);
 
     if (!defined $dualtype) {
         alert "Ignoring unknown inner header type ($type)", type => $type, size => $size, value => $val;

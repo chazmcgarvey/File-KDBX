@@ -9,10 +9,10 @@ use Encode qw(encode);
 use File::KDBX::Constants qw(:magic);
 use File::KDBX::Error;
 use File::KDBX::Loader::KDB;
-use File::KDBX::Util qw(:uuid load_optional);
+use File::KDBX::Util qw(:class :uuid load_optional);
 use namespace::clean;
 
-use parent 'File::KDBX::Dumper';
+extends 'File::KDBX::Dumper';
 
 our $VERSION = '999.999'; # VERSION
 

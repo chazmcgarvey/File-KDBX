@@ -8,14 +8,40 @@ use Crypt::Digest qw(digest_data);
 use Crypt::Mac::HMAC qw(hmac);
 use Errno;
 use File::KDBX::Error;
-use File::KDBX::Util qw(:io assert_64bit);
+use File::KDBX::Util qw(:class :io assert_64bit);
 use namespace::clean;
 
-use parent 'File::KDBX::IO';
+extends 'File::KDBX::IO';
 
 our $VERSION = '999.999'; # VERSION
 our $BLOCK_SIZE = 1048576;  # 1MiB
 our $ERROR;
+
+=attr block_size
+
+Desired block size when writing (default: C<$File::KDBX::IO::HmacBlock::BLOCK_SIZE> or 1,048,576 bytes)
+
+=attr key
+
+HMAC-SHA256 key for authenticating the data stream (required)
+
+=cut
+
+my %ATTRS = (
+    _block_index    => 0,
+    _buffer         => sub { \(my $buf = '') },
+    _finished       => 0,
+    block_size      => sub { $BLOCK_SIZE },
+    key             => undef,
+);
+while (my ($attr, $default) = each %ATTRS) {
+    no strict 'refs'; ## no critic (ProhibitNoStrict)
+    *$attr = sub {
+        my $self = shift;
+        *$self->{$attr} = shift if @_;
+        *$self->{$attr} //= (ref $default eq 'CODE') ? $default->($self) : $default;
+    };
+}
 
 =method new
 
@@ -37,32 +63,6 @@ sub new {
     $self->block_size($args{block_size});
     $self->_buffer;
     return $self;
-}
-
-=attr block_size
-
-Desired block size when writing (default: C<$File::KDBX::IO::HmacBlock::BLOCK_SIZE> or 1,048,576 bytes)
-
-=attr key
-
-HMAC-SHA256 key for authenticating the data stream (required)
-
-=cut
-
-my %ATTRS = (
-    _block_index    => 0,
-    _buffer         => \(my $buf = ''),
-    _finished       => 0,
-    block_size      => sub { $BLOCK_SIZE },
-    key             => undef,
-);
-while (my ($attr, $default) = each %ATTRS) {
-    no strict 'refs'; ## no critic (ProhibitNoStrict)
-    *$attr = sub {
-        my $self = shift;
-        *$self->{$attr} = shift if @_;
-        *$self->{$attr} //= (ref $default eq 'CODE') ? $default->($self) : $default;
-    };
 }
 
 sub _FILL {

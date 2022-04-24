@@ -274,8 +274,9 @@ BEGIN {
 }
 
 our %EXPORT_TAGS;
-push @{$EXPORT_TAGS{header}}, 'KDBX_HEADER';
-push @{$EXPORT_TAGS{inner_header}}, 'KDBX_INNER_HEADER';
+push @{$EXPORT_TAGS{header}}, 'kdbx_header';
+push @{$EXPORT_TAGS{compression}}, 'compression';
+push @{$EXPORT_TAGS{inner_header}}, 'kdbx_inner_header';
 push @{$EXPORT_TAGS{icon}}, 'icon';
 
 $EXPORT_TAGS{all} = [map { @$_ } values %EXPORT_TAGS];
@@ -290,8 +291,13 @@ for my $header (
 ) {
     $HEADER{$header} = $HEADER{0+$header} = $header;
 }
-sub KDBX_HEADER { $HEADER{$_[0]} }
+sub kdbx_header { $HEADER{$_[0]} }
 
+my %COMPRESSION;
+for my $compression (COMPRESSION_NONE, COMPRESSION_GZIP) {
+    $COMPRESSION{$compression} = $COMPRESSION{0+$compression} = $compression;
+}
+sub compression { $COMPRESSION{$_[0]} }
 
 my %INNER_HEADER;
 for my $inner_header (
@@ -300,7 +306,7 @@ for my $inner_header (
 ) {
     $INNER_HEADER{$inner_header} = $INNER_HEADER{0+$inner_header} = $inner_header;
 }
-sub KDBX_INNER_HEADER { $INNER_HEADER{$_[0]} }
+sub kdbx_inner_header { $INNER_HEADER{$_[0]} }
 
 my %ICON;
 for my $icon (
@@ -399,7 +405,13 @@ Constants related to parsing and generating KDBX file headers:
 = C<HEADER_INNER_RANDOM_STREAM_ID>
 = C<HEADER_KDF_PARAMETERS>
 = C<HEADER_PUBLIC_CUSTOM_DATA>
-= C<KDBX_HEADER>
+
+=func kdbx_header
+
+    $constant = kdbx_header($number);
+    $constant = kdbx_header($string);
+
+Get a header constant from an integer or string value.
 
 =head2 :compression
 
@@ -408,6 +420,13 @@ Constants related to identifying the compression state of a file:
 =for :list
 = C<COMPRESSION_NONE>
 = C<COMPRESSION_GZIP>
+
+=func compression
+
+    $constant = compression($number);
+    $constant = compression($string);
+
+Get a compression constant from an integer or string value.
 
 =head2 :cipher
 
@@ -484,7 +503,13 @@ Constants related to parsing and generating KDBX4 inner headers:
 = C<INNER_HEADER_INNER_RANDOM_STREAM_KEY>
 = C<INNER_HEADER_BINARY>
 = C<INNER_HEADER_BINARY_FLAG_PROTECT>
-= C<KDBX_INNER_HEADER>
+
+=func kdbx_inner_header
+
+    $constant = kdbx_inner_header($number);
+    $constant = kdbx_inner_header($string);
+
+Get an inner header constant from an integer or string value.
 
 =head2 :key_file
 
@@ -578,6 +603,13 @@ Constants for default icons used by KeePass password safe implementations:
 = C<ICON_MONEY>
 = C<ICON_CERTIFICATE>
 = C<ICON_SMARTPHONE>
+
+=func icon
+
+    $constant = icon($number);
+    $constant = icon($string);
+
+Get an icon constant from an integer or string value.
 
 =head2 :bool
 

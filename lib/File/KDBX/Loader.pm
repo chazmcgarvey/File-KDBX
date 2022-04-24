@@ -6,7 +6,7 @@ use strict;
 
 use File::KDBX::Constants qw(:magic :header :version);
 use File::KDBX::Error;
-use File::KDBX::Util qw(:io);
+use File::KDBX::Util qw(:class :io);
 use File::KDBX;
 use IO::Handle;
 use Module::Load ();
@@ -223,10 +223,6 @@ Possible formats:
 * C<XML>
 * C<Raw>
 
-=cut
-
-sub format { $_[0]->{format} }
-
 =attr inner_format
 
 Get the format of the data inside the KDBX envelope. This only applies to C<V3> and C<V4> formats. Possible
@@ -238,9 +234,10 @@ formats:
 
 =cut
 
-sub inner_format { $_[0]->{inner_format} // 'XML' }
+has format          => undef, is => 'ro';
+has inner_format    => 'XML', is => 'ro';
 
-=attr min_version
+=method min_version
 
     $min_version = File::KDBX::Loader->min_version;
 

@@ -4,7 +4,9 @@ package File::KDBX::Loader::Raw;
 use warnings;
 use strict;
 
-use parent 'File::KDBX::Loader';
+use File::KDBX::Util qw(:class);
+
+extends 'File::KDBX::Loader';
 
 our $VERSION = '999.999'; # VERSION
 

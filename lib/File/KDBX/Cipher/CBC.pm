@@ -6,11 +6,16 @@ use strict;
 
 use Crypt::Mode::CBC;
 use File::KDBX::Error;
+use File::KDBX::Util qw(:class);
 use namespace::clean;
 
-use parent 'File::KDBX::Cipher';
+extends 'File::KDBX::Cipher';
 
 our $VERSION = '999.999'; # VERSION
+
+has key_size => 32;
+sub iv_size     { 16 }
+sub block_size  { 16 }
 
 sub encrypt {
     my $self = shift;
@@ -43,17 +48,6 @@ sub finish {
     delete $self->{mode};
     return $out;
 }
-
-=attr algorithm
-
-Get the symmetric cipher algorithm.
-
-=cut
-
-sub algorithm   { $_[0]->{algorithm} or throw 'Block cipher algorithm is not set' }
-sub key_size    { $_[0]->{key_size} // 32 }
-sub iv_size     { 16 }
-sub block_size  { 16 }
 
 1;
 __END__
