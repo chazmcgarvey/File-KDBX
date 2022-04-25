@@ -296,7 +296,7 @@ sub _write_xml_root {
 
     if (my $group = $kdbx->root) {
         my $group_node = $node->addNewChild(undef, 'Group');
-        $self->_write_xml_group($group_node, $group->_confirmed);
+        $self->_write_xml_group($group_node, $group->_committed);
     }
 
     undef $guard;   # re-lock if needed, as early as possible
@@ -337,12 +337,12 @@ sub _write_xml_group {
 
     for my $entry (@{$group->entries}) {
         my $entry_node = $node->addNewChild(undef, 'Entry');
-        $self->_write_xml_entry($entry_node, $entry->_confirmed);
+        $self->_write_xml_entry($entry_node, $entry->_committed);
     }
 
     for my $group (@{$group->groups}) {
         my $group_node = $node->addNewChild(undef, 'Group');
-        $self->_write_xml_group($group_node, $group->_confirmed);
+        $self->_write_xml_group($group_node, $group->_committed);
     }
 }
 
@@ -423,7 +423,7 @@ sub _write_xml_entry {
             my $history_node = $node->addNewChild(undef, 'History');
             for my $historical (@history) {
                 my $historical_node = $history_node->addNewChild(undef, 'Entry');
-                $self->_write_xml_entry($historical_node, $historical->_confirmed, 1);
+                $self->_write_xml_entry($historical_node, $historical->_committed, 1);
             }
         }
     }

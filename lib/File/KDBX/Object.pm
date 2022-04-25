@@ -469,56 +469,6 @@ sub custom_data_value {
 
 ##############################################################################
 
-sub _signal {
-    my $self = shift;
-    my $type = shift;
-
-    if ($self->_in_txn) {
-        my $stack = $self->_signal_stack;
-        my $queue = $stack->[-1];
-        push @$queue, [$type, @_];
-    }
-
-    $self->_signal_send([[$type, @_]]);
-}
-
-sub _signal_stack { $SIGNALS{$_[0]} //= [] }
-
-sub _signal_begin_work {
-    my $self = shift;
-    push @{$self->_signal_stack}, [];
-}
-
-sub _signal_commit {
-    my $self = shift;
-    my $signals = pop @{$self->_signal_stack};
-    my $previous = $self->_signal_stack->[-1] // [];
-    push @$previous, @$signals;
-    return $previous;
-}
-
-sub _signal_rollback {
-    my $self = shift;
-    pop @{$self->_signal_stack};
-}
-
-sub _signal_send {
-    my $self    = shift;
-    my $signals = shift // [];
-
-    my $kdbx = $KDBX{$self} or return;
-
-    # de-duplicate, keeping the most recent signal for each type
-    my %seen;
-    my @signals = grep { !$seen{$_->[0]}++ } reverse @$signals;
-
-    for my $sig (reverse @signals) {
-        $kdbx->_handle_signal($self, @$sig);
-    }
-}
-
-##############################################################################
-
 =method begin_work
 
     $txn = $object->begin_work(%options);
@@ -605,10 +555,6 @@ sub commit {
     return $self;
 }
 
-sub _commit { die 'Not implemented' }
-sub _in_txn { scalar @{$_[0]->_txns} }
-sub _txns   { $TXNS{$_[0]} //= [] }
-
 =method rollback
 
     $object->rollback;
@@ -631,6 +577,28 @@ sub rollback {
     return $self;
 }
 
+# Get whether or not there is at least one pending transaction.
+sub _in_txn { scalar @{$_[0]->_txns} }
+
+# Get an array ref of pending transactions.
+sub _txns   { $TXNS{$_[0]} //= [] }
+
+# The _commit hook notifies subclasses that a commit has occurred.
+sub _commit { die 'Not implemented' }
+
+# Get a reference to an object that represents an object's committed state. If there is no pending
+# transaction, this is just $self. If there is a transaction, this is the snapshot take before the transaction
+# began. This method is private because it provides direct access to the actual snapshot. It is important that
+# the snapshot not be changed or a rollback would roll back to an altered state.
+# This is used by File::KDBX::Dumper::XML so as to not dump uncommitted changes.
+sub _committed {
+    my $self = shift;
+    my ($orig) = @{$self->_txns};
+    return $orig // $self;
+}
+
+# In addition to cloning an object when beginning work, we also keep track its hashrefs and arrayrefs
+# internally so that we can restore to the very same structures in the case of a rollback.
 sub _save_references {
     my $id   = shift;
     my $self = shift;
@@ -650,6 +618,7 @@ sub _save_references {
     }
 }
 
+# During a rollback, copy data from the snapshot back into the original internal structures.
 sub _restore_references {
     my $id   = shift;
     my $orig = shift // return;
@@ -669,10 +638,56 @@ sub _restore_references {
     return $self;
 }
 
-sub _confirmed {
+##############################################################################
+
+sub _signal {
     my $self = shift;
-    my ($orig) = @{$self->_txns};
-    return $orig // $self;
+    my $type = shift;
+
+    if ($self->_in_txn) {
+        my $stack = $self->_signal_stack;
+        my $queue = $stack->[-1];
+        push @$queue, [$type, @_];
+    }
+
+    $self->_signal_send([[$type, @_]]);
+
+    return $self;
+}
+
+sub _signal_stack { $SIGNALS{$_[0]} //= [] }
+
+sub _signal_begin_work {
+    my $self = shift;
+    push @{$self->_signal_stack}, [];
+}
+
+sub _signal_commit {
+    my $self = shift;
+    my $signals = pop @{$self->_signal_stack};
+    my $previous = $self->_signal_stack->[-1] // [];
+    push @$previous, @$signals;
+    return $previous;
+}
+
+sub _signal_rollback {
+    my $self = shift;
+    pop @{$self->_signal_stack};
+}
+
+sub _signal_send {
+    my $self    = shift;
+    my $signals = shift // [];
+
+    my $kdbx = $KDBX{$self} or return;
+
+    # de-duplicate, keeping the most recent signal for each type
+    my %seen;
+    my @signals = grep { !$seen{$_->[0]}++ } reverse @$signals;
+
+    for my $sig (reverse @signals) {
+        $kdbx->_handle_signal($self, @$sig);
+    }
 }
 
 ##############################################################################

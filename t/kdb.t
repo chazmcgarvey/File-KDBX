@@ -27,8 +27,8 @@ sub test_basic {
         transform_seed => "\227\264\n^\230\2\301:!f\364\336\251\277\241[\3`\314RG\343\16U\333\305eT3:\240\257",
     }), 'Get expected headers from KDB file' or diag explain $kdbx->headers;
 
-    is keys %{$kdbx->deleted_objects}, 0, 'There are no deleted objects';
-    is scalar @{$kdbx->root->groups}, 2, 'Root group has two children.';
+    is keys %{$kdbx->deleted_objects}, 0, 'There are no deleted objects' or dumper $kdbx->deleted_objects;
+    is scalar @{$kdbx->root->groups}, 2, 'Root group has two children';
 
     my $group1 = $kdbx->root->groups->[0];
     isnt $group1->uuid, undef, 'Group 1 has a UUID';

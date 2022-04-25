@@ -102,7 +102,7 @@ sub add_entry {
     $entry->kdbx($kdbx) if $kdbx;
 
     push @{$self->{entries} ||= []}, $entry->remove;
-    return $entry->_set_group($self);
+    return $entry->_set_group($self)->_signal('added', $self);
 }
 
 sub remove_entry {
@@ -112,9 +112,8 @@ sub remove_entry {
     for (my $i = 0; $i < @$objects; ++$i) {
         my $o = $objects->[$i];
         next if $uuid ne $o->uuid;
+        $o->_set_group(undef)->_signal('removed');
         return splice @$objects, $i, 1;
-        $o->_set_group(undef);
-        return @$objects, $i, 1;
     }
 }
 
@@ -128,10 +127,44 @@ sub groups {
     return $groups;
 }
 
+=method all_groups
+
+    \@groups = $group->all_groups(%options);
+
+Get all groups within a group, deeply, in a flat array. Supported options:
+
+=cut
+
 sub all_groups {
     my $self = shift;
-    # FIXME - shouldn't have to delegate to the database to get this
-    return $self->kdbx->all_groups(base => $self, include_base => false);
+
+    my @groups;
+    for my $subgroup (@{$self->groups}) {
+        push @groups, @{$subgroup->all_groups};
+    }
+
+    return \@groups;
+}
+
+=method find_groups
+
+    @groups = $kdbx->find_groups($query, %options);
+
+Find all groups deeply that match to a query. Options are the same as for L</all_groups>.
+
+See L</QUERY> for a description of what C<$query> can be.
+
+=cut
+
+sub find_groups {
+    my $self = shift;
+    my $query = shift or throw 'Must provide a query';
+    my %args = @_;
+    my %all_groups = ( # FIXME
+        base            => $args{base},
+        include_base    => $args{include_base},
+    );
+    return @{search($self->all_groups(%all_groups), is_arrayref($query) ? @$query : $query)};
 }
 
 sub _kpx_groups { shift->groups(@_) }
@@ -158,7 +191,7 @@ sub add_group {
     $group->kdbx($kdbx) if $kdbx;
 
     push @{$self->{groups} ||= []}, $group->remove;
-    return $group->_set_group($self);
+    return $group->_set_group($self)->_signal('added', $self);
 }
 
 sub remove_group {
@@ -168,7 +201,7 @@ sub remove_group {
     for (my $i = 0; $i < @$objects; ++$i) {
         my $o = $objects->[$i];
         next if $uuid ne $o->uuid;
-        $o->_set_group(undef);
+        $o->_set_group(undef)->_signal('removed');
         return splice @$objects, $i, 1;
     }
 }

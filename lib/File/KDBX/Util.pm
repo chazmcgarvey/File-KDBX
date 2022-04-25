@@ -35,7 +35,7 @@ our %EXPORT_TAGS = (
     load        => [qw(load_optional load_xs try_load_optional)],
     search      => [qw(query search search_limited simple_expression_query)],
     text        => [qw(snakify trim)],
-    uuid        => [qw(format_uuid generate_uuid is_uuid uuid)],
+    uuid        => [qw(format_uuid generate_uuid is_uuid uuid UUID_NULL)],
     uri         => [qw(split_url uri_escape_utf8 uri_unescape_utf8)],
 );
 
@@ -975,6 +975,14 @@ sub uuid {
     return pack('H32', $_);
 
 }
+
+=func UUID_NULL
+
+Get the null UUID (i.e. string of 16 null bytes).
+
+=cut
+
+sub UUID_NULL() { "\0" x 16 }
 
 ### --------------------------------------------------------------------------
 

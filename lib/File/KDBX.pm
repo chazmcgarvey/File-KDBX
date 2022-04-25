@@ -9,7 +9,7 @@ use Devel::GlobalDestruction;
 use File::KDBX::Constants qw(:all);
 use File::KDBX::Error;
 use File::KDBX::Safe;
-use File::KDBX::Util qw(:class :coercion :empty :uuid :search erase simple_expression_query snakify);
+use File::KDBX::Util qw(:class :coercion :empty :search :uuid erase simple_expression_query snakify);
 use Hash::Util::FieldHash qw(fieldhashes);
 use List::Util qw(any first);
 use Ref::Util qw(is_ref is_arrayref is_plain_hashref);
@@ -50,7 +50,7 @@ sub DESTROY { local ($., $@, $!, $^E, $?); !in_global_destruction and $_[0]->res
 
     $kdbx = $kdbx->init(%attributes);
 
-Initialize a L<File::KDBX> with a new set of attributes. Returns itself to allow method chaining.
+Initialize a L<File::KDBX> with a set of attributes. Returns itself to allow method chaining.
 
 This is called by L</new>.
 
@@ -273,12 +273,12 @@ has 'meta.master_key_change_force'          => -1,                          coer
 # has 'meta.memory_protection'                => {};
 has 'meta.custom_icons'                     => [];
 has 'meta.recycle_bin_enabled'              => true,                        coerce => \&to_bool;
-has 'meta.recycle_bin_uuid'                 => "\0" x 16,                   coerce => \&to_uuid;
+has 'meta.recycle_bin_uuid'                 => UUID_NULL,                   coerce => \&to_uuid;
 has 'meta.recycle_bin_changed'              => sub { gmtime },              coerce => \&to_time;
-has 'meta.entry_templates_group'            => "\0" x 16,                   coerce => \&to_uuid;
+has 'meta.entry_templates_group'            => UUID_NULL,                   coerce => \&to_uuid;
 has 'meta.entry_templates_group_changed'    => sub { gmtime },              coerce => \&to_time;
-has 'meta.last_selected_group'              => "\0" x 16,                   coerce => \&to_uuid;
-has 'meta.last_top_visible_group'           => "\0" x 16,                   coerce => \&to_uuid;
+has 'meta.last_selected_group'              => UUID_NULL,                   coerce => \&to_uuid;
+has 'meta.last_top_visible_group'           => UUID_NULL,                   coerce => \&to_uuid;
 has 'meta.history_max_items'                => HISTORY_DEFAULT_MAX_ITEMS,   coerce => \&to_number;
 has 'meta.history_max_size'                 => HISTORY_DEFAULT_MAX_SIZE,    coerce => \&to_number;
 has 'meta.settings_changed'                 => sub { gmtime },              coerce => \&to_time;
@@ -497,7 +497,7 @@ Add a group to a database. This is equivalent to identifying a parent group and 
 L<File::KDBX::Group/add_group> on the parent group, forwarding the arguments. Available options:
 
 =for :list
-* C<group> (aka C<parent>) - Group (object or group UUID) to add the group to (default: root group)
+* C<group> (aka C<parent>) - Group object or group UUID to add the group to (default: root group)
 
 =cut
 
@@ -540,6 +540,10 @@ sub all_groups {
     my %args = @_ % 2 == 0 ? @_ : (base => shift, @_);
     my $base = $args{base} // $self->root;
 
+    # my @groups;
+    # push @groups, $self->_wrap_group($base) if $args{include_base} // 1;
+    # push @groups, @{$base->all_groups};
+    # return \@groups;
     my @groups = $args{include_base} // 1 ? $self->_wrap_group($base) : ();
 
     for my $subgroup (@{$base->{groups} || []}) {
@@ -582,7 +586,7 @@ Add a entry to a database. This is equivalent to identifying a parent group and 
 L<File::KDBX::Group/add_entry> on the parent group, forwarding the arguments. Available options:
 
 =for :list
-* C<group> (aka C<parent>) - Group (object or group UUID) to add the entry to (default: root group)
+* C<group> (aka C<parent>) - Group object or group UUID to add the entry to (default: root group)
 
 =cut
 
@@ -927,10 +931,43 @@ are removed.
 sub add_deleted_object {
     my $self = shift;
     my $uuid = shift;
+
+    # ignore null and meta stream UUIDs
+    return if $uuid eq UUID_NULL || $uuid eq '0' x 16;
+
     $self->deleted_objects->{$uuid} = {
         uuid            => $uuid,
         deletion_time   => scalar gmtime,
     };
+}
+
+=method remove_deleted_object
+
+    $kdbx->remove_deleted_object($uuid);
+
+Remove a UUID from the deleted objects list. This list is used to support automatic database merging.
+
+You typically do not need to call this yourself because the list will be maintained automatically as objects
+are added.
+
+=cut
+
+sub remove_deleted_object {
+    my $self = shift;
+    my $uuid = shift;
+    delete $self->deleted_objects->{$uuid};
+}
+
+=method clear_deleted_objects
+
+Remove all UUIDs from the deleted objects list.  This list is used to support automatic database merging, but
+if you don't need merging then you can clear deleted objects to reduce the database file size.
+
+=cut
+
+sub clear_deleted_objects {
+    my $self = shift;
+    %{$self->deleted_objects} = ();
 }
 
 ##############################################################################
@@ -1438,34 +1475,35 @@ sub _handle_signal {
     my $type    = shift;
 
     my %handlers = (
+        'entry.added'           => \&_handle_object_added,
+        'group.added'           => \&_handle_object_added,
+        'entry.removed'         => \&_handle_object_removed,
+        'group.removed'         => \&_handle_object_removed,
         'entry.uuid.changed'    => \&_handle_entry_uuid_changed,
         'group.uuid.changed'    => \&_handle_group_uuid_changed,
-        'entry.uuid.removed'    => \&_handle_object_removed,
-        'group.uuid.removed'    => \&_handle_object_removed,
     );
     my $handler = $handlers{$type} or return;
     $self->$handler($object, @_);
 }
 
-sub _handle_group_uuid_changed {
+sub _handle_object_added {
+    my $self    = shift;
+    my $object  = shift;
+    $self->remove_deleted_object($object->uuid);
+}
+
+sub _handle_object_removed {
     my $self        = shift;
     my $object      = shift;
-    my $new_uuid    = shift;
-    my $old_uuid    = shift // return;
+    my $old_uuid    = $object->{uuid} // return;
 
     my $meta = $self->meta;
-    $self->recycle_bin_uuid($new_uuid) if $old_uuid eq ($meta->{recycle_bin_uuid} // '');
-    $self->entry_templates_group($new_uuid) if $old_uuid eq ($meta->{entry_templates_group} // '');
-    $self->last_selected_group($new_uuid) if $old_uuid eq ($meta->{last_selected_group} // '');
-    $self->last_top_visible_group($new_uuid) if $old_uuid eq ($meta->{last_top_visible_group} // '');
+    $self->recycle_bin_uuid(UUID_NULL)          if $old_uuid eq ($meta->{recycle_bin_uuid} // '');
+    $self->entry_templates_group(UUID_NULL)     if $old_uuid eq ($meta->{entry_templates_group} // '');
+    $self->last_selected_group(UUID_NULL)       if $old_uuid eq ($meta->{last_selected_group} // '');
+    $self->last_top_visible_group(UUID_NULL)    if $old_uuid eq ($meta->{last_top_visible_group} // '');
 
-    for my $group (@{$self->all_groups}) {
-        $group->last_top_visible_entry($new_uuid) if $old_uuid eq ($group->{last_top_visible_entry} // '');
-        $group->previous_parent_group($new_uuid) if $old_uuid eq ($group->{previous_parent_group} // '');
-    }
-    for my $entry (@{$self->all_entries}) {
-        $entry->previous_parent_group($new_uuid) if $old_uuid eq ($entry->{previous_parent_group} // '');
-    }
+    $self->add_deleted_object($old_uuid);
 }
 
 sub _handle_entry_uuid_changed {
@@ -1490,10 +1528,25 @@ sub _handle_entry_uuid_changed {
     }
 }
 
-sub _handle_object_removed {
-    my $self    = shift;
-    my $object  = shift;
-    $self->add_delete_object($object->uuid);
+sub _handle_group_uuid_changed {
+    my $self        = shift;
+    my $object      = shift;
+    my $new_uuid    = shift;
+    my $old_uuid    = shift // return;
+
+    my $meta = $self->meta;
+    $self->recycle_bin_uuid($new_uuid)          if $old_uuid eq ($meta->{recycle_bin_uuid} // '');
+    $self->entry_templates_group($new_uuid)     if $old_uuid eq ($meta->{entry_templates_group} // '');
+    $self->last_selected_group($new_uuid)       if $old_uuid eq ($meta->{last_selected_group} // '');
+    $self->last_top_visible_group($new_uuid)    if $old_uuid eq ($meta->{last_top_visible_group} // '');
+
+    for my $group (@{$self->all_groups}) {
+        $group->last_top_visible_entry($new_uuid) if $old_uuid eq ($group->{last_top_visible_entry} // '');
+        $group->previous_parent_group($new_uuid) if $old_uuid eq ($group->{previous_parent_group} // '');
+    }
+    for my $entry (@{$self->all_entries}) {
+        $entry->previous_parent_group($new_uuid) if $old_uuid eq ($entry->{previous_parent_group} // '');
+    }
 }
 
 #########################################################################################
