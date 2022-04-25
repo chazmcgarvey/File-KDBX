@@ -401,7 +401,7 @@ sub has {
     my ($package, $file, $line) = caller;
 
     my $d = $args{default};
-    my $default = is_arrayref($d) ? sub { [%$d] } : is_hashref($d) ? sub { +{%$d} } : $d;
+    my $default = is_arrayref($d) ? sub { [@$d] } : is_hashref($d) ? sub { +{%$d} } : $d;
     my $coerce  = $args{coerce};
     my $is      = $args{is} || 'rw';
 
@@ -420,8 +420,8 @@ sub has {
 
     my $set = '';
     if ($is eq 'rw') {
-        $set = is_coderef $coerce ? qq{$member = scalar \$coerce->(\$_[1]) if \$#_;}
-                : defined $coerce ? qq{$member = do { local $_; shift; $coerce } if \$#_;}
+        $set = is_coderef $coerce ? qq{$member = scalar \$coerce->(\@_[1..\$#_]) if \$#_;}
+                : defined $coerce ? qq{$member = do { local @_ = (\@_[1..\$#_]); $coerce } if \$#_;}
                                   : qq{$member = \$_[1] if \$#_;};
     }
 

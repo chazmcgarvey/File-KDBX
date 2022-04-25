@@ -11,7 +11,7 @@ use File::KDBX::Error;
 use File::KDBX::Safe;
 use File::KDBX::Util qw(:class :coercion :empty :uuid :search erase simple_expression_query snakify);
 use Hash::Util::FieldHash qw(fieldhashes);
-use List::Util qw(any);
+use List::Util qw(any first);
 use Ref::Util qw(is_ref is_arrayref is_plain_hashref);
 use Scalar::Util qw(blessed);
 use Time::Piece;
@@ -237,12 +237,12 @@ has deleted_objects => {};
 has raw             => coerce => \&to_string;
 
 # HEADERS
-has 'headers.comment'               => '', coerce => \&to_string;
-has 'headers.cipher_id'             => CIPHER_UUID_CHACHA20, coerce => \&to_uuid;
-has 'headers.compression_flags'     => COMPRESSION_GZIP, coerce => \&to_compression_constant;
-has 'headers.master_seed'           => sub { random_bytes(32) }, coerce => \&to_string;
-has 'headers.encryption_iv'         => sub { random_bytes(16) }, coerce => \&to_string;
-has 'headers.stream_start_bytes'    => sub { random_bytes(32) }, coerce => \&to_string;
+has 'headers.comment'               => '',                          coerce => \&to_string;
+has 'headers.cipher_id'             => CIPHER_UUID_CHACHA20,        coerce => \&to_uuid;
+has 'headers.compression_flags'     => COMPRESSION_GZIP,            coerce => \&to_compression_constant;
+has 'headers.master_seed'           => sub { random_bytes(32) },    coerce => \&to_string;
+has 'headers.encryption_iv'         => sub { random_bytes(16) },    coerce => \&to_string;
+has 'headers.stream_start_bytes'    => sub { random_bytes(32) },    coerce => \&to_string;
 has 'headers.kdf_parameters'        => sub {
     +{
         KDF_PARAM_UUID()        => KDF_UUID_AES,
@@ -271,7 +271,7 @@ has 'meta.master_key_changed'               => sub { gmtime },              coer
 has 'meta.master_key_change_rec'            => -1,                          coerce => \&to_number;
 has 'meta.master_key_change_force'          => -1,                          coerce => \&to_number;
 # has 'meta.memory_protection'                => {};
-has 'meta.custom_icons'                     => {};
+has 'meta.custom_icons'                     => [];
 has 'meta.recycle_bin_enabled'              => true,                        coerce => \&to_bool;
 has 'meta.recycle_bin_uuid'                 => "\0" x 16,                   coerce => \&to_uuid;
 has 'meta.recycle_bin_changed'              => sub { gmtime },              coerce => \&to_time;
@@ -361,7 +361,7 @@ sub minimum_version {
 
     return KDBX_VERSION_4_1 if any {
         nonempty $_->{name} || nonempty $_->{last_modification_time}
-    } values %{$self->custom_icons};
+    } @{$self->custom_icons};
 
     return KDBX_VERSION_4_1 if any {
         nonempty $_->previous_parent_group || nonempty $_->tags ||
@@ -386,39 +386,6 @@ sub minimum_version {
 
 ##############################################################################
 
-=method add_group
-
-    $kdbx->add_group($group, %options);
-    $kdbx->add_group(%group_attributes, %options);
-
-Add a group to a database. This is equivalent to identifying a parent group and calling
-L<File::KDBX::Group/add_group> on the parent group, forwarding the arguments. Available options:
-
-=for :list
-* C<group> (aka C<parent>) - Group (object or group UUID) to add the group to (default: root group)
-
-=cut
-
-sub add_group {
-    my $self    = shift;
-    my $group   = @_ % 2 == 1 ? shift : undef;
-    my %args    = @_;
-
-    # find the right group to add the group to
-    my $parent = delete $args{group} // delete $args{parent} // $self->root;
-    ($parent) = $self->find_groups({uuid => $parent}) if !ref $parent;
-    $parent or throw 'Invalid group';
-
-    return $parent->add_group(defined $group ? $group : (), %args, kdbx => $self);
-}
-
-sub _wrap_group {
-    my $self  = shift;
-    my $group = shift;
-    require File::KDBX::Group;
-    return File::KDBX::Group->wrap($group, $self);
-}
-
 =method root
 
     $group = $kdbx->root;
@@ -428,13 +395,13 @@ Get or set a database's root group. You don't necessarily need to explicitly cre
 because it autovivifies when adding entries and groups to the database.
 
 Every database has only a single root group at a time. Some old KDB files might have multiple root groups.
-When reading such files, a single implicit root group is created to contain the other explicit groups. When
+When reading such files, a single implicit root group is created to contain the actual root groups. When
 writing to such a format, if the root group looks like it was implicitly created then it won't be written and
 the resulting file might have multiple root groups. This allows working with older files without changing
 their written internal structure while still adhering to modern semantics while the database is opened.
 
-B<WARNING:> The root group of a KDBX database contains all of the database's entries and other groups. If you
-replace the root group, you are essentially replacing the entire database contents with something else.
+The root group of a KDBX database contains all of the database's entries and other groups. If you replace the
+root group, you are essentially replacing the entire database contents with something else.
 
 =cut
 
@@ -483,35 +450,6 @@ sub _implicit_root {
     );
 }
 
-=method all_groups
-
-    \@groups = $kdbx->all_groups(%options);
-    \@groups = $kdbx->all_groups($base_group, %options);
-
-Get all groups deeply in a database, or all groups within a specified base group, in a flat array. Supported
-options:
-
-=for :list
-* C<base> - Only include groups within a base group (same as C<$base_group>) (default: root)
-* C<include_base> - Include the base group in the results (default: true)
-
-=cut
-
-sub all_groups {
-    my $self = shift;
-    my %args = @_ % 2 == 0 ? @_ : (base => shift, @_);
-    my $base = $args{base} // $self->root;
-
-    my @groups = $args{include_base} // 1 ? $self->_wrap_group($base) : ();
-
-    for my $subgroup (@{$base->{groups} || []}) {
-        my $more = $self->all_groups($subgroup);
-        push @groups, @$more;
-    }
-
-    return \@groups;
-}
-
 =method trace_lineage
 
     \@lineage = $kdbx->trace_lineage($group);
@@ -548,6 +486,70 @@ sub _trace_lineage {
     }
 }
 
+##############################################################################
+
+=method add_group
+
+    $kdbx->add_group($group, %options);
+    $kdbx->add_group(%group_attributes, %options);
+
+Add a group to a database. This is equivalent to identifying a parent group and calling
+L<File::KDBX::Group/add_group> on the parent group, forwarding the arguments. Available options:
+
+=for :list
+* C<group> (aka C<parent>) - Group (object or group UUID) to add the group to (default: root group)
+
+=cut
+
+sub add_group {
+    my $self    = shift;
+    my $group   = @_ % 2 == 1 ? shift : undef;
+    my %args    = @_;
+
+    # find the right group to add the group to
+    my $parent = delete $args{group} // delete $args{parent} // $self->root;
+    ($parent) = $self->find_groups({uuid => $parent}) if !ref $parent;
+    $parent or throw 'Invalid group';
+
+    return $parent->add_group(defined $group ? $group : (), %args, kdbx => $self);
+}
+
+sub _wrap_group {
+    my $self  = shift;
+    my $group = shift;
+    require File::KDBX::Group;
+    return File::KDBX::Group->wrap($group, $self);
+}
+
+=method all_groups
+
+    \@groups = $kdbx->all_groups(%options);
+    \@groups = $kdbx->all_groups($base_group, %options);
+
+Get all groups deeply in a database, or all groups within a specified base group, in a flat array. Supported
+options:
+
+=for :list
+* C<base> - Only include groups within a base group (same as C<$base_group>) (default: root)
+* C<include_base> - Include the base group in the results (default: true)
+
+=cut
+
+sub all_groups {
+    my $self = shift;
+    my %args = @_ % 2 == 0 ? @_ : (base => shift, @_);
+    my $base = $args{base} // $self->root;
+
+    my @groups = $args{include_base} // 1 ? $self->_wrap_group($base) : ();
+
+    for my $subgroup (@{$base->{groups} || []}) {
+        my $more = $self->all_groups($subgroup);
+        push @groups, @$more;
+    }
+
+    return \@groups;
+}
+
 =method find_groups
 
     @groups = $kdbx->find_groups($query, %options);
@@ -567,11 +569,6 @@ sub find_groups {
         include_base    => $args{include_base},
     );
     return @{search($self->all_groups(%all_groups), is_arrayref($query) ? @$query : $query)};
-}
-
-sub remove {
-    my $self = shift;
-    my $object = shift;
 }
 
 ##############################################################################
@@ -709,46 +706,52 @@ sub find_entries_simple {
     $kdbx->custom_icon(%icon);
     $kdbx->custom_icon(uuid => $value, %icon);
 
+Get or set custom icons.
 
 =cut
 
 sub custom_icon {
     my $self = shift;
-    my %args = @_     == 2 ? (uuid => shift, value => shift)
+    my %args = @_     == 2 ? (uuid => shift, data => shift)
              : @_ % 2 == 1 ? (uuid => shift, @_) : @_;
 
-    if (!$args{key} && !$args{value}) {
-        my %standard = (key => 1, value => 1, last_modification_time => 1);
+    if (!$args{uuid} && !$args{data}) {
+        my %standard = (uuid => 1, data => 1, name => 1, last_modification_time => 1);
         my @other_keys = grep { !$standard{$_} } keys %args;
         if (@other_keys == 1) {
             my $key = $args{key} = $other_keys[0];
-            $args{value} = delete $args{$key};
+            $args{data} = delete $args{$key};
         }
     }
 
-    my $key = $args{key} or throw 'Must provide a custom_icons key to access';
+    my $uuid = $args{uuid} or throw 'Must provide a custom icon UUID to access';
+    my $icon = (first { $_->{uuid} eq $uuid } @{$self->custom_icons}) // do {
+        push @{$self->custom_icons}, my $i = { uuid => $uuid };
+        $i;
+    };
 
-    return $self->{meta}{custom_icons}{$key} = $args{value} if is_plain_hashref($args{value});
+    my $fields = \%args;
+    $fields = $args{data} if is_plain_hashref($args{data});
 
-    while (my ($field, $value) = each %args) {
-        $self->{meta}{custom_icons}{$key}{$field} = $value;
+    while (my ($field, $value) = each %$fields) {
+        $icon->{$field} = $value;
     }
-    return $self->{meta}{custom_icons}{$key};
+    return $icon;
 }
 
 =method custom_icon_data
 
     $image_data = $kdbx->custom_icon_data($uuid);
 
-Get a custom icon.
+Get a custom icon image data.
 
 =cut
 
 sub custom_icon_data {
     my $self = shift;
     my $uuid = shift // return;
-    return if !exists $self->custom_icons->{$uuid};
-    return $self->custom_icons->{$uuid}{data};
+    my $icon = first { $_->{uuid} eq $uuid } @{$self->custom_icons} or return;
+    return $icon->{data};
 }
 
 =method add_custom_icon
@@ -758,7 +761,7 @@ sub custom_icon_data {
 Add a custom icon and get its UUID. If not provided, a random UUID will be generated. Possible attributes:
 
 =for :list
-* C<uuid> - Icon UUID
+* C<uuid> - Icon UUID (default: autogenerated)
 * C<name> - Name of the icon (text, KDBX4.1+)
 * C<last_modification_time> - Just what it says (datetime, KDBX4.1+)
 
@@ -769,8 +772,8 @@ sub add_custom_icon {
     my $img  = shift or throw 'Must provide image data';
     my %args = @_;
 
-    my $uuid = $args{uuid} // generate_uuid(sub { !$self->custom_icons->{$_} });
-    $self->custom_icons->{$uuid} = {
+    my $uuid = $args{uuid} // generate_uuid;
+    push @{$self->custom_icons}, {
         @_,
         uuid    => $uuid,
         data    => $img,
@@ -789,7 +792,11 @@ Remove a custom icon.
 sub remove_custom_icon {
     my $self = shift;
     my $uuid = shift;
-    delete $self->custom_icons->{$uuid};
+    my @deleted;
+    @{$self->custom_icons} = grep { $_->{uuid} eq $uuid ? do { push @deleted, $_; 0 } : 1 }
+        @{$self->custom_icons};
+    $self->add_deleted_object($uuid) if @deleted;
+    return @deleted;
 }
 
 ##############################################################################
@@ -905,6 +912,26 @@ sub public_custom_data {
 
 #     die 'Not implemented';
 # }
+
+=method add_deleted_object
+
+    $kdbx->add_deleted_object($uuid);
+
+Add a UUID to the deleted objects list. This list is used to support automatic database merging.
+
+You typically do not need to call this yourself because the list will be populated automatically as objects
+are removed.
+
+=cut
+
+sub add_deleted_object {
+    my $self = shift;
+    my $uuid = shift;
+    $self->deleted_objects->{$uuid} = {
+        uuid            => $uuid,
+        deletion_time   => scalar gmtime,
+    };
+}
 
 ##############################################################################
 
@@ -1069,9 +1096,9 @@ our %PLACEHOLDERS = (
 
     $kdbx->lock;
 
-Encrypt all protected strings in a database. The encrypted strings are stored in a L<File::KDBX::Safe>
-associated with the database and the actual strings will be replaced with C<undef> to indicate their protected
-state. Returns itself to allow method chaining.
+Encrypt all protected binaries strings in a database. The encrypted strings are stored in
+a L<File::KDBX::Safe> associated with the database and the actual strings will be replaced with C<undef> to
+indicate their protected state. Returns itself to allow method chaining.
 
 =cut
 
@@ -1092,7 +1119,7 @@ sub lock {
 
     my $entries = $self->all_entries(history => 1);
     for my $entry (@$entries) {
-        push @strings, grep { $_->{protect} } values %{$entry->{strings} || {}};
+        push @strings, grep { $_->{protect} } values %{$entry->strings}, values %{$entry->binaries};
     }
 
     $self->_safe(File::KDBX::Safe->new(\@strings));
@@ -1207,11 +1234,11 @@ sub randomize_seeds {
     $key = $kdbx->key($key);
     $key = $kdbx->key($primitive);
 
-Get or set a L<File::KDBX::Key>. This is the master key (i.e. a password or a key file that can decrypt
+Get or set a L<File::KDBX::Key>. This is the master key (e.g. a password or a key file that can decrypt
 a database). See L<File::KDBX::Key/new> for an explanation of what the primitive can be.
 
 You generally don't need to call this directly because you can provide the key directly to the loader or
-dumper when loading or saving a KDBX file.
+dumper when loading or dumping a KDBX file.
 
 =cut
 
@@ -1382,7 +1409,7 @@ sub inner_random_stream_key {
 
 #########################################################################################
 
-sub check {
+# sub check {
 # - Fixer tool. Can repair inconsistencies, including:
 #   - Orphaned binaries... not really a thing anymore since we now distribute binaries amongst entries
 #   - Unused custom icons (OFF, data loss)
@@ -1401,7 +1428,7 @@ sub check {
 #   - Duplicate window associations (OFF)
 #   - Only one root group (ON)
   # - Header UUIDs match known ciphers/KDFs?
-}
+# }
 
 #########################################################################################
 
@@ -1411,14 +1438,16 @@ sub _handle_signal {
     my $type    = shift;
 
     my %handlers = (
-        'entry.uuid.changed'    => \&_update_entry_uuid,
-        'group.uuid.changed'    => \&_update_group_uuid,
+        'entry.uuid.changed'    => \&_handle_entry_uuid_changed,
+        'group.uuid.changed'    => \&_handle_group_uuid_changed,
+        'entry.uuid.removed'    => \&_handle_object_removed,
+        'group.uuid.removed'    => \&_handle_object_removed,
     );
     my $handler = $handlers{$type} or return;
     $self->$handler($object, @_);
 }
 
-sub _update_group_uuid {
+sub _handle_group_uuid_changed {
     my $self        = shift;
     my $object      = shift;
     my $new_uuid    = shift;
@@ -1439,7 +1468,7 @@ sub _update_group_uuid {
     }
 }
 
-sub _update_entry_uuid {
+sub _handle_entry_uuid_changed {
     my $self        = shift;
     my $object      = shift;
     my $new_uuid    = shift;
@@ -1459,6 +1488,12 @@ sub _update_entry_uuid {
             $txn->commit;
         }
     }
+}
+
+sub _handle_object_removed {
+    my $self    = shift;
+    my $object  = shift;
+    $self->add_delete_object($object->uuid);
 }
 
 #########################################################################################

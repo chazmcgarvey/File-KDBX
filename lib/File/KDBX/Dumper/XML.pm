@@ -249,10 +249,10 @@ sub _write_xml_custom_icons {
     my $self = shift;
     my $node = shift;
 
-    my $custom_icons = $self->kdbx->meta->{custom_icons} || {};
+    my $custom_icons = $self->kdbx->custom_icons;
 
-    for my $uuid (sort keys %$custom_icons) {
-        my $icon = $custom_icons->{$uuid};
+    for my $icon (@$custom_icons) {
+        $icon->{uuid} && $icon->{data} or next;
         my $icon_node = $node->addNewChild(undef, 'Icon');
 
         $self->_write_xml_from_pairs($icon_node, $icon,

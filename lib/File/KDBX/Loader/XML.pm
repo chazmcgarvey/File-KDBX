@@ -165,16 +165,15 @@ sub _read_xml_custom_data {
 sub _read_xml_custom_icons {
     my $self = shift;
 
-    return $self->_read_xml_element(
+    return $self->_read_xml_element([],
         Icon    => sub {
             my $self = shift;
-            my $icon = $self->_read_xml_element(
+            $self->_read_xml_element(
                 UUID                    => 'uuid',
                 Data                    => 'binary',
                 Name                    => 'text',      # KDBX4.1
                 LastModificationTime    => 'datetime',  # KDBX4.1
             );
-            $icon->{uuid} => $icon;
         },
     );
 }

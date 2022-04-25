@@ -92,18 +92,19 @@ for my $test (
 
 sub test_custom_icons {
     my $kdbx = shift;
+    $kdbx = $kdbx->() if ref $kdbx eq 'CODE';
 
-    my ($uuid, @other) = keys %{$kdbx->custom_icons};
-    ok $uuid, 'Database has a custom icon';
+    my ($icon, @other) = @{$kdbx->custom_icons};
+    ok $icon, 'Database has a custom icon';
     is scalar @other, 0, 'Database has no other icons';
 
-    my $data = $kdbx->custom_icon_data($uuid);
-    like $data, qr/^\x89PNG\r\n/, 'Custom icon is a PNG';
+    like $icon->{data}, qr/^\x89PNG\r\n/, 'Custom icon is a PNG';
 }
 for my $test (
     ['Custom icons' => $kdbx],
-    ['Custom icons after dump & load roundtrip'
-        => File::KDBX->load_string($kdbx->dump_string('a', allow_upgrade => 0, randomize_seeds => 0), 'a')],
+    ['Custom icons after dump & load roundtrip' => sub {
+        File::KDBX->load_string($kdbx->dump_string('a', allow_upgrade => 0, randomize_seeds => 0), 'a');
+    }],
 ) {
     my ($name, $kdbx) = @$test;
     subtest $name, \&test_custom_icons, $kdbx;

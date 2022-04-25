@@ -232,7 +232,7 @@ sub _convert_keepass_to_kdbx_headers {
     $meta->{settings_changed}                       = _decode_datetime($from->{settings_changed});
 
     while (my ($key, $value) = each %{$from->{custom_icons} || {}}) {
-        $meta->{custom_icons}{$key} = {value => $value};
+        push @{$meta->{custom_icons} //= []}, {uuid => $key, data => $value};
     }
     while (my ($key, $value) = each %{$from->{custom_data} || {}}) {
         $meta->{custom_data}{$key} = {value => $value};

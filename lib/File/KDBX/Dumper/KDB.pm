@@ -64,8 +64,8 @@ sub _write_custom_icons {
     my %groups;     # id -> index
     my %gid;
 
-    for my $uuid (sort keys %{$kdbx->custom_icons}) {
-        my $icon = $kdbx->custom_icons->{$uuid};
+    for my $icon (@{$kdbx->custom_icons}) {
+        my $uuid = $icon->{uuid};
         my $data = $icon->{data} or next;
         push @icons, $data;
         $icons{$uuid} = $#icons;
