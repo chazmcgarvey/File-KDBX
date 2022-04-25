@@ -5,6 +5,7 @@ use warnings;
 use strict;
 
 use File::KDBX::Util qw(:class);
+use namespace::clean;
 
 extends 'File::KDBX::Loader';
 

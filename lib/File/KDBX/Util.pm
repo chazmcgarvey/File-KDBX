@@ -398,59 +398,43 @@ sub has {
     my $name = shift;
     my %args = @_ % 2 == 1 ? (default => shift, @_) : @_;
 
+    my ($package, $file, $line) = caller;
+
     my $d = $args{default};
     my $default = is_arrayref($d) ? sub { [%$d] } : is_hashref($d) ? sub { +{%$d} } : $d;
     my $coerce  = $args{coerce};
     my $is      = $args{is} || 'rw';
 
-    my $has_default = is_coderef $default;
-    my $has_coerce  = is_coderef $coerce;
-
     my $store = $args{store};
     ($store, $name) = split(/\./, $name, 2) if $name =~ /\./;
+    push @{$ATTRIBUTES{$package} //= []}, $name;
 
-    my $caller = caller;
-    push @{$ATTRIBUTES{$caller} //= []}, $name;
+    my $store_code = '';
+    $store_code = qq{->$store} if $store;
+    my $member = qq{\$_[0]$store_code\->{'$name'}};
 
-    no strict 'refs'; ## no critic (ProhibitNoStrict)
-    if ($store) {
-        *{"${caller}::${name}"} = $is eq 'ro' && $has_default ? sub {
-            $_[0]->$store->{$name} //= scalar $default->($_[0]);
-        } : $is eq 'ro' ? sub {
-            $_[0]->$store->{$name} //= $default;
-        } : $has_default && $has_coerce ? sub {
-            $#_ ? $_[0]->$store->{$name} = scalar $coerce->($_[1])
-                : $_[0]->$store->{$name} //= scalar $default->($_[0]);
-        } : $has_default ? sub {
-            $#_ ? $_[0]->$store->{$name} = $_[1]
-                : $_[0]->$store->{$name} //= scalar $default->($_[0]);
-        } : $has_coerce ? sub {
-            $#_ ? $_[0]->$store->{$name} = scalar $coerce->($_[1])
-                : $_[0]->$store->{$name} //= $default;
-        } : sub {
-            $#_ ? $_[0]->$store->{$name} = $_[1]
-                : $_[0]->$store->{$name} //= $default;
-        };
+    my $default_code = is_coderef $default ? q{scalar $default->($_[0])}
+                        : defined $default ? q{$default}
+                                           : q{undef};
+    my $get = qq{$member //= $default_code;};
+
+    my $set = '';
+    if ($is eq 'rw') {
+        $set = is_coderef $coerce ? qq{$member = scalar \$coerce->(\$_[1]) if \$#_;}
+                : defined $coerce ? qq{$member = do { local $_; shift; $coerce } if \$#_;}
+                                  : qq{$member = \$_[1] if \$#_;};
     }
-    else {
-        *{"${caller}::${name}"} = $is eq 'ro' && $has_default ? sub {
-            $_[0]->{$name} //= scalar $default->($_[0]);
-        } : $is eq 'ro' ? sub {
-            $_[0]->{$name} //= $default;
-        } : $has_default && $has_coerce ? sub {
-            $#_ ? $_[0]->{$name} = scalar $coerce->($_[1])
-                : $_[0]->{$name} //= scalar $default->($_[0]);
-        } : $has_default ? sub {
-            $#_ ? $_[0]->{$name} = $_[1]
-                : $_[0]->{$name} //= scalar $default->($_[0]);
-        } : $has_coerce ? sub {
-            $#_ ? $_[0]->{$name} = scalar $coerce->($_[1])
-                : $_[0]->{$name} //= $default;
-        } : sub {
-            $#_ ? $_[0]->{$name} = $_[1]
-                : ($_[0]->{$name} //= $default);
-        };
-    }
+
+    $line -= 4;
+    my $code = <<END;
+# line $line "$file"
+sub ${package}::${name} {
+    return $default_code if !Scalar::Util::blessed(\$_[0]);
+    $set
+    $get
+}
+END
+    eval $code; ## no critic (ProhibitStringyEval)
 }
 
 =func format_uuid

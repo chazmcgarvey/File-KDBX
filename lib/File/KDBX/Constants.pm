@@ -291,13 +291,13 @@ for my $header (
 ) {
     $HEADER{$header} = $HEADER{0+$header} = $header;
 }
-sub to_header_constant { $HEADER{$_[0]} }
+sub to_header_constant { $HEADER{$_[0] // ''} }
 
 my %COMPRESSION;
 for my $compression (COMPRESSION_NONE, COMPRESSION_GZIP) {
     $COMPRESSION{$compression} = $COMPRESSION{0+$compression} = $compression;
 }
-sub to_compression_constant { $COMPRESSION{$_[0]} }
+sub to_compression_constant { $COMPRESSION{$_[0] // ''} }
 
 my %INNER_HEADER;
 for my $inner_header (
@@ -306,7 +306,7 @@ for my $inner_header (
 ) {
     $INNER_HEADER{$inner_header} = $INNER_HEADER{0+$inner_header} = $inner_header;
 }
-sub to_inner_header_constant { $INNER_HEADER{$_[0]} }
+sub to_inner_header_constant { $INNER_HEADER{$_[0] // ''} }
 
 my %ICON;
 for my $icon (
