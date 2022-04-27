@@ -7,9 +7,11 @@ use strict;
 use File::KDBX::Error;
 use File::KDBX::Util qw(:class :load :search);
 use Iterator::Simple;
+use Module::Loaded;
 use Ref::Util qw(is_arrayref is_coderef is_scalarref);
 use namespace::clean;
 
+BEGIN { mark_as_loaded('Iterator::Simple::Iterator') }
 extends 'Iterator::Simple::Iterator';
 
 our $VERSION = '999.999'; # VERSION

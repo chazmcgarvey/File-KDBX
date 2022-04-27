@@ -411,8 +411,7 @@ Set up the current module to inheret from another module.
 sub extends {
     my $parent  = shift;
     my $caller  = caller;
-    # load $parent;
-    eval qq[require $parent];
+    load $parent;
     no strict 'refs'; ## no critic (ProhibitNoStrict)
     @{"${caller}::ISA"} = $parent;
 }
