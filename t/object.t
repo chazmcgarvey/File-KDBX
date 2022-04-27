@@ -17,13 +17,13 @@ subtest 'Cloning' => sub {
     my $entry = File::KDBX::Entry->new;
 
     my $copy = $entry->clone;
-    like exception { $copy->kdbx }, qr/disassociated/, 'Disassociated entry copy is also disassociated';
-    cmp_deeply $copy, $entry, 'Disassociated entry and its clone are identical';
+    like exception { $copy->kdbx }, qr/disconnected/, 'Disconnected entry copy is also disconnectedisconnected';
+    cmp_deeply $copy, $entry, 'Disconnected entry and its clone are identical';
 
     $entry->kdbx($kdbx);
     $copy = $entry->clone;
-    is $entry->kdbx, $copy->kdbx, 'Associated entry copy is also associated';
-    cmp_deeply $copy, $entry, 'Associated entry and its clone are identical';
+    is $entry->kdbx, $copy->kdbx, 'Connected entry copy is also connected';
+    cmp_deeply $copy, $entry, 'Connected entry and its clone are identical';
 
     my $txn = $entry->begin_work;
     $entry->title('foo');

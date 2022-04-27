@@ -18,7 +18,7 @@ subtest 'Construction' => sub {
     is $entry->{username}, 'foo', 'username is in the object still';
     is $entry->username, '', 'username is not the UserName string';
 
-    like exception { $entry->kdbx }, qr/disassociated from a KDBX database/, 'Dies if disassociated';
+    like exception { $entry->kdbx }, qr/disconnected/, 'Dies if disconnected';
     $entry->kdbx(my $kdbx = File::KDBX->new);
     is $entry->kdbx, $kdbx, 'Set a database after instantiation';
 

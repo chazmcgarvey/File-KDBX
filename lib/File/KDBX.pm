@@ -6,7 +6,7 @@ use strict;
 
 use Crypt::PRNG qw(random_bytes);
 use Devel::GlobalDestruction;
-use File::KDBX::Constants qw(:all);
+use File::KDBX::Constants qw(:all :icon);
 use File::KDBX::Error;
 use File::KDBX::Safe;
 use File::KDBX::Util qw(:class :coercion :empty :search :uuid erase simple_expression_query snakify);
@@ -493,6 +493,97 @@ sub _trace_lineage {
         my $result = $self->_trace_lineage($object, @lineage, $subgroup);
         return $result if $result;
     }
+}
+
+=method recycle_bin
+
+    $group = $kdbx->recycle_bin;
+    $kdbx->recycle_bin($group);
+
+Get or set the recycle bin group. Returns C<undef> if there is no recycle bin and L</recycle_bin_enabled> is
+false, otherwise the current recycle bin or an autovivified recycle bin group is returned.
+
+=cut
+
+sub recycle_bin {
+    my $self = shift;
+    if (my $group = shift) {
+        $self->recycle_bin_uuid($group->uuid);
+        return $group;
+    }
+    my $group;
+    my $uuid = $self->recycle_bin_uuid;
+    $group = $self->groups->grep(uuid => $uuid)->next if $uuid ne UUID_NULL;
+    if (!$group && $self->recycle_bin_enabled) {
+        $group = $self->add_group(
+            name                => 'Recycle Bin',
+            icon_id             => ICON_TRASHCAN_FULL,
+            enable_auto_type    => false,
+            enable_searching    => false,
+        );
+        $self->recycle_bin_uuid($group->uuid);
+    }
+    return $group;
+}
+
+=method entry_templates
+
+    $group = $kdbx->entry_templates;
+    $kdbx->entry_templates($group);
+
+Get or set the entry templates group. May return C<undef> if unset.
+
+=cut
+
+sub entry_templates {
+    my $self = shift;
+    if (my $group = shift) {
+        $self->entry_templates_group($group->uuid);
+        return $group;
+    }
+    my $uuid = $self->entry_templates_group;
+    return if $uuid eq UUID_NULL;
+    return $self->groups->grep(uuid => $uuid)->next;
+}
+
+=method last_selected
+
+    $group = $kdbx->last_selected;
+    $kdbx->last_selected($group);
+
+Get or set the last selected group. May return C<undef> if unset.
+
+=cut
+
+sub last_selected {
+    my $self = shift;
+    if (my $group = shift) {
+        $self->last_selected_group($group->uuid);
+        return $group;
+    }
+    my $uuid = $self->last_selected_group;
+    return if $uuid eq UUID_NULL;
+    return $self->groups->grep(uuid => $uuid)->next;
+}
+
+=method last_top_visible
+
+    $group = $kdbx->last_top_visible;
+    $kdbx->last_top_visible($group);
+
+Get or set the last top visible group. May return C<undef> if unset.
+
+=cut
+
+sub last_top_visible {
+    my $self = shift;
+    if (my $group = shift) {
+        $self->last_top_visible_group($group->uuid);
+        return $group;
+    }
+    my $uuid = $self->last_top_visible_group;
+    return if $uuid eq UUID_NULL;
+    return $self->groups->grep(uuid => $uuid)->next;
 }
 
 ##############################################################################

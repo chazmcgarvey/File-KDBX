@@ -324,8 +324,8 @@ do not expand to values are left as-is.
 
 See L</Placeholders>.
 
-Some placeholders (notably field references) require the entry be associated with a database and will throw an
-error if there is no association.
+Some placeholders (notably field references) require the entry be connected to a database and will throw an
+error if it is not.
 
 =cut
 
@@ -754,7 +754,7 @@ sub history_size {
     $entry->prune_history(%options);
 
 Remove as many older historical entries as necessary to get under the database limits. The limits are taken
-from the associated database (if any) or can be overridden with C<%options>:
+from the connected database (if any) or can be overridden with C<%options>:
 
 =for :list
 * C<max_items> - Maximum number of historical entries to keep (default: 10, no limit: -1)

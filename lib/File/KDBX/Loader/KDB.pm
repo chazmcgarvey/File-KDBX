@@ -100,7 +100,7 @@ sub convert_keepass_to_kdbx {
     })
     ->each(sub {
         _read_meta_stream($kdbx, $_);
-        $_->remove; # TODO do not signal
+        $_->remove(signal => 0);
     });
 
     return $kdbx;

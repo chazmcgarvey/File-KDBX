@@ -5,7 +5,7 @@ use warnings;
 use strict;
 
 use Devel::GlobalDestruction;
-use File::KDBX::Constants qw(:icon);
+use File::KDBX::Constants qw(:bool :icon);
 use File::KDBX::Error;
 use File::KDBX::Iterator;
 use File::KDBX::Util qw(:assert :class :coercion generate_uuid);
@@ -131,11 +131,13 @@ sub add_entry {
 sub remove_entry {
     my $self = shift;
     my $uuid = is_ref($_[0]) ? $self->_wrap_entry(shift)->uuid : shift;
+    my %args = @_;
     my $objects = $self->{entries};
     for (my $i = 0; $i < @$objects; ++$i) {
-        my $o = $objects->[$i];
-        next if $uuid ne $o->uuid;
-        $o->_set_group(undef)->_signal('removed');
+        my $object = $objects->[$i];
+        next if $uuid ne $object->uuid;
+        $object->_set_group(undef);
+        $object->_signal('removed') if $args{signal} // 1;
         return splice @$objects, $i, 1;
     }
 }
@@ -217,11 +219,13 @@ sub add_group {
 sub remove_group {
     my $self = shift;
     my $uuid = is_ref($_[0]) ? $self->_wrap_group(shift)->uuid : shift;
+    my %args = @_;
     my $objects = $self->{groups};
     for (my $i = 0; $i < @$objects; ++$i) {
-        my $o = $objects->[$i];
-        next if $uuid ne $o->uuid;
-        $o->_set_group(undef)->_signal('removed');
+        my $object = $objects->[$i];
+        next if $uuid ne $object->uuid;
+        $object->_set_group(undef);
+        $object->_signal('removed') if $args{signal} // 1;
         return splice @$objects, $i, 1;
     }
 }
@@ -300,14 +304,74 @@ sub remove_object {
 
     $bool = $group->is_root;
 
-Determine if a group is the root group of its associated database.
+Determine if a group is the root group of its connected database.
 
 =cut
 
 sub is_root {
     my $self = shift;
-    my $kdbx = eval { $self->kdbx } or return;
+    my $kdbx = eval { $self->kdbx } or return FALSE;
     return Hash::Util::FieldHash::id($kdbx->root) == Hash::Util::FieldHash::id($self);
+}
+
+=method is_recycle_bin
+
+    $bool = $group->is_recycle_bin;
+
+Get whether or not a group is the recycle bin of its connected database.
+
+=cut
+
+sub is_recycle_bin {
+    my $self    = shift;
+    my $kdbx    = eval { $self->kdbx } or return FALSE;
+    my $group   = $kdbx->recycle_bin;
+    return $group && Hash::Util::FieldHash::id($group) == Hash::Util::FieldHash::id($self);
+}
+
+=method is_entry_templates
+
+    $bool = $group->is_entry_templates;
+
+Get whether or not a group is the group containing entry template of its connected database.
+
+=cut
+
+sub entry_templates {
+    my $self    = shift;
+    my $kdbx    = eval { $self->kdbx } or return FALSE;
+    my $group   = $kdbx->entry_templates;
+    return $group && Hash::Util::FieldHash::id($group) == Hash::Util::FieldHash::id($self);
+}
+
+=method is_last_selected
+
+    $bool = $group->is_last_selected;
+
+Get whether or not a group is the prior selected group of its connected database.
+
+=cut
+
+sub last_selected {
+    my $self    = shift;
+    my $kdbx    = eval { $self->kdbx } or return FALSE;
+    my $group   = $kdbx->last_selected;
+    return $group && Hash::Util::FieldHash::id($group) == Hash::Util::FieldHash::id($self);
+}
+
+=method is_last_top_visible
+
+    $bool = $group->is_last_top_visible;
+
+Get whether or not a group is the latest top visible group of its connected database.
+
+=cut
+
+sub last_top_visible {
+    my $self    = shift;
+    my $kdbx    = eval { $self->kdbx } or return FALSE;
+    my $group   = $kdbx->last_top_visible;
+    return $group && Hash::Util::FieldHash::id($group) == Hash::Util::FieldHash::id($self);
 }
 
 =method path

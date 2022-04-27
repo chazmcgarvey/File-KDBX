@@ -5,10 +5,11 @@ use warnings;
 use strict;
 
 use Devel::GlobalDestruction;
+use File::KDBX::Constants qw(:bool);
 use File::KDBX::Error;
 use File::KDBX::Util qw(:uuid);
 use Hash::Util::FieldHash qw(fieldhashes);
-use List::Util qw(first);
+use List::Util qw(any first);
 use Ref::Util qw(is_arrayref is_plain_arrayref is_plain_hashref is_ref);
 use Scalar::Util qw(blessed weaken);
 use namespace::clean;
@@ -133,9 +134,9 @@ sub label { die 'Not implemented' }
     $object_copy = $object->clone;
     $object_copy = File::KDBX::Object->new($object);
 
-Make a clone of an object. By default the clone is indeed an exact copy that is associated with the same
-database but not actually included in the object tree (i.e. it has no parent). Some options are allowed to
-get different effects:
+Make a clone of an object. By default the clone is indeed an exact copy that is connected to the same database
+but not actually included in the object tree (i.e. it has no parent). Some options are allowed to get
+different effects:
 
 =for :list
 * C<new_uuid> - If set, generate a new UUID for the copy (default: false)
@@ -235,7 +236,7 @@ sub STORABLE_thaw {
     $kdbx = $object->kdbx;
     $object->kdbx($kdbx);
 
-Get or set the L<File::KDBX> instance associated with this object.
+Get or set the L<File::KDBX> instance connected with this object.
 
 =cut
 
@@ -251,7 +252,20 @@ sub kdbx {
             delete $KDBX{$self};
         }
     }
-    $KDBX{$self} or throw 'Object is disassociated from a KDBX database', object => $self;
+    $KDBX{$self} or throw 'Object is disconnected', object => $self;
+}
+
+=method is_connected
+
+    $bool = $object->is_connected;
+
+Determine whether or not an object is connected to a database.
+
+=cut
+
+sub is_connected {
+    my $self = shift;
+    return !!eval { $self->kdbx };
 }
 
 =method id
@@ -278,12 +292,23 @@ sub id { format_uuid(shift->uuid, @_) }
     # OR equivalently
     $group = $object->parent;
 
-Get the parent group to which an object belongs or C<undef> if it belongs to no group.
+    $object->group($new_parent);
+
+Get or set the parent group to which an object belongs or C<undef> if it belongs to no group.
 
 =cut
 
 sub group {
     my $self = shift;
+
+    if (my $new_group = shift) {
+        my $old_group = $self->group;
+        return $new_group if Hash::Util::FieldHash::id($old_group) == Hash::Util::FieldHash::id($new_group);
+        # move to a new parent
+        $self->remove(signal => 0) if $old_group;
+        $new_group->add_object($self);
+    }
+
     my $id   = Hash::Util::FieldHash::id($self);
     if (my $group = $PARENT{$self}) {
         my $method = $self->_parent_container;
@@ -346,20 +371,72 @@ sub lineage {
 
 =method remove
 
-    $object = $object->remove;
+    $object = $object->remove(%options);
 
-Remove the object from the database. If the object is a group, all contained objects are removed as well.
+Remove an object from its parent. If the object is a group, all contained objects stay with the object and so
+are removed as well. Options:
+
+=for :list
+* C<signal> Whether or not to signal the removal to the connected database (default: true)
 
 =cut
 
 sub remove {
-    # TODO - need a way to not signal database because there are times like in the KDB loader and meta streams
-    # where we do not want to add UUIDs to deleted objects
     my $self = shift;
     my $parent = $self->parent;
-    $parent->remove_object($self) if $parent;
+    $parent->remove_object($self, @_) if $parent;
+    $self->_set_group(undef);
     return $self;
 }
+
+=method recycle
+
+    $object = $object->recycle;
+
+Remove an object from its parent and add it to the connected database's recycle bin group.
+
+=cut
+
+sub recycle {
+    my $self = shift;
+    return $self->parent($self->kdbx->recycle_bin);
+}
+
+=method recycle_or_remove
+
+    $object = $object->recycle_or_remove;
+
+Recycle or remove an object, depending on the connected database's L<File::KDBX/recycle_bin_enabled>. If the
+object is not connected to a database or is already in the recycle bin, remove it.
+
+=cut
+
+sub recycle_or_remove {
+    my $self = shift;
+    my $kdbx = eval { $self->kdbx };
+    if ($kdbx && $kdbx->recycle_bin_enabled && !$self->is_recycled) {
+        $self->recycle;
+    }
+    else {
+        $self->remove;
+    }
+}
+
+=method is_recycled
+
+    $bool = $object->is_recycled;
+
+Get whether or not an object is in a recycle bin.
+
+=cut
+
+sub is_recycled {
+    my $self = shift;
+    eval { $self->kdbx } or return FALSE;
+    return !!($self->parent && any { $_->is_recycle_bin } @{$self->lineage});
+}
+
+##############################################################################
 
 =method tag_list
 
@@ -726,10 +803,11 @@ but instead use its subclasses:
 
 There is some functionality shared by both types of objects, and that's what this class provides.
 
-Each object can be associated with a L<File::KDBX> database or be disassociated. A disassociated object will
-not be persisted when dumping a database. It is also possible for an object to be associated with a database
-but not be part of the object tree (i.e. is not the root group or any subroup or entry). A disassociated
-object or an object not part of the object tree of a database can be added to a database using one of:
+Each object can be connected with a L<File::KDBX> database or be disconnected. A disconnected object exists in
+memory but will not be persisted when dumping a database. It is also possible for an object to be connected
+with a database but not be part of the object tree (i.e. is not the root group or any subroup or entry).
+A disconnected object or an object not part of the object tree of a database can be added to a database using
+one of:
 
 =for :list
 * L<File::KDBX/add_entry>
