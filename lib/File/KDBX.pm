@@ -8,7 +8,6 @@ use Crypt::PRNG qw(random_bytes);
 use Devel::GlobalDestruction;
 use File::KDBX::Constants qw(:all);
 use File::KDBX::Error;
-use File::KDBX::Iterator;
 use File::KDBX::Safe;
 use File::KDBX::Util qw(:class :coercion :empty :search :uuid erase simple_expression_query snakify);
 use Hash::Util::FieldHash qw(fieldhashes);
@@ -488,9 +487,9 @@ sub _trace_lineage {
     my $base = $lineage[-1] or return [];
 
     my $uuid = $object->uuid;
-    return \@lineage if any { $_->uuid eq $uuid } @{$base->groups || []}, @{$base->entries || []};
+    return \@lineage if any { $_->uuid eq $uuid } @{$base->groups}, @{$base->entries};
 
-    for my $subgroup (@{$base->groups || []}) {
+    for my $subgroup (@{$base->groups}) {
         my $result = $self->_trace_lineage($object, @lineage, $subgroup);
         return $result if $result;
     }
@@ -548,37 +547,9 @@ Get an iterator over I<groups> within a database. Options:
 sub groups {
     my $self = shift;
     my %args = @_ % 2 == 0 ? @_ : (base => shift, @_);
-    my $base = $args{base} // $self->root;
+    my $base = delete $args{base} // $self->root;
 
-    my @groups = ($args{inclusive} // 1) ? $base : @{$base->groups};
-    my $algo = lc($args{algorithm} || 'ids');
-
-    if ($algo eq 'dfs') {
-        my %visited;
-        return File::KDBX::Iterator->new(sub {
-            my $next = shift @groups or return;
-            if (!$visited{Hash::Util::FieldHash::id($next)}++) {
-                while (my @children = @{$next->groups}) {
-                    unshift @groups, @children, $next;
-                    $next = shift @groups;
-                    $visited{Hash::Util::FieldHash::id($next)}++;
-                }
-            }
-            $next;
-        });
-    }
-    elsif ($algo eq 'bfs') {
-        return File::KDBX::Iterator->new(sub {
-            my $next = shift @groups or return;
-            push @groups, @{$next->groups};
-            $next;
-        });
-    }
-    return File::KDBX::Iterator->new(sub {
-        my $next = shift @groups or return;
-        unshift @groups, @{$next->groups};
-        $next;
-    });
+    return $base->groups_deeply(%args);
 }
 
 ##############################################################################
@@ -634,35 +605,17 @@ ones:
 sub entries {
     my $self = shift;
     my %args = @_ % 2 == 0 ? @_ : (base => shift, @_);
+    my $base = delete $args{base} // $self->root;
 
-    my $searching   = $args{searching};
-    my $auto_type   = $args{auto_type};
-    my $history     = $args{history};
-
-    my $groups = $self->groups(%args);
-    my @entries;
-
-    return File::KDBX::Iterator->new(sub {
-        if (!@entries) {
-            while (my $group = $groups->next) {
-                next if $searching && !$group->effective_enable_searching;
-                next if $auto_type && !$group->effective_enable_auto_type;
-                @entries = @{$group->entries};
-                @entries = grep { $_->auto_type->{enabled} } @entries if $auto_type;
-                @entries = map { ($_, @{$_->history}) } @entries if $history;
-                last if @entries;
-            }
-        }
-        shift @entries;
-    });
+    return $base->entries_deeply(%args);
 }
 
 ##############################################################################
 
 =method objects
 
-    \&iterator = $kdbx->entries(%options);
-    \&iterator = $kdbx->entries($base_group, %options);
+    \&iterator = $kdbx->objects(%options);
+    \&iterator = $kdbx->objects($base_group, %options);
 
 Get an iterator over I<objects> within a database. Groups and entries are considered objects, so this is
 essentially a combination of L</groups> and L</entries>. This won't often be useful, but it can be convenient
@@ -673,27 +626,9 @@ for maintenance tasks. This method takes the same options as L</groups> and L</e
 sub objects {
     my $self = shift;
     my %args = @_ % 2 == 0 ? @_ : (base => shift, @_);
+    my $base = delete $args{base} // $self->root;
 
-    my $searching   = $args{searching};
-    my $auto_type   = $args{auto_type};
-    my $history     = $args{history};
-
-    my $groups = $self->groups(%args);
-    my @entries;
-
-    return File::KDBX::Iterator->new(sub {
-        if (!@entries) {
-            while (my $group = $groups->next) {
-                next if $searching && !$group->effective_enable_searching;
-                next if $auto_type && !$group->effective_enable_auto_type;
-                @entries = @{$group->entries};
-                @entries = grep { $_->auto_type->{enabled} } @entries if $auto_type;
-                @entries = map { ($_, @{$_->history}) } @entries if $history;
-                return $group;
-            }
-        }
-        shift @entries;
-    });
+    return $base->objects_deeply(%args);
 }
 
 sub __iter__ { $_[0]->objects }

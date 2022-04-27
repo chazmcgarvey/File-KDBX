@@ -129,6 +129,11 @@ BEGIN {
             DEFAULT_MAX_ITEMS   => 10,
             DEFAULT_MAX_SIZE    => 6_291_456, # 6 M
         },
+        iteration   => {
+            ITERATION_BFS   => dualvar(1, 'bfs'),
+            ITERATION_DFS   => dualvar(2, 'dfs'),
+            ITERATION_IDS   => dualvar(3, 'ids'),
+        },
         icon        => {
             __prefix            => 'ICON',
             PASSWORD            => dualvar(  0, 'Password'),
@@ -528,6 +533,15 @@ Constants for history-related default values:
 =for :list
 = C<HISTORY_DEFAULT_MAX_ITEMS>
 = C<HISTORY_DEFAULT_MAX_SIZE>
+
+=head2 :iteration
+
+Constants for searching algorithms.
+
+=for :list
+= C<ITERATION_IDS> - Iterative deepening search
+= C<ITERATION_BFS> - Breadth-first search
+= C<ITERATION_DFS> - Depth-first search
 
 =head2 :icon
 

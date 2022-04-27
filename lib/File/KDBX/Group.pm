@@ -7,9 +7,10 @@ use strict;
 use Devel::GlobalDestruction;
 use File::KDBX::Constants qw(:icon);
 use File::KDBX::Error;
-use File::KDBX::Util qw(:class :coercion generate_uuid);
+use File::KDBX::Iterator;
+use File::KDBX::Util qw(:assert :class :coercion generate_uuid);
 use Hash::Util::FieldHash;
-use List::Util qw(sum0);
+use List::Util qw(any sum0);
 use Ref::Util qw(is_coderef is_ref);
 use Scalar::Util qw(blessed);
 use Time::Piece;
@@ -69,15 +70,37 @@ sub uuid {
 sub entries {
     my $self = shift;
     my $entries = $self->{entries} //= [];
-    # FIXME - Looping through entries on each access is too expensive.
-    @$entries = map { $self->_wrap_entry($_, $self->kdbx) } @$entries;
+    if (@$entries && !blessed($entries->[0])) {
+        @$entries = map { $self->_wrap_entry($_, $self->kdbx) } @$entries;
+    }
+    assert { !any { !blessed $_ } @$entries };
     return $entries;
 }
 
-sub all_entries {
+sub entries_deeply {
     my $self = shift;
-    # FIXME - shouldn't have to delegate to the database to get this
-    return $self->kdbx->all_entries(base => $self);
+    my %args = @_;
+
+    my $searching   = delete $args{searching};
+    my $auto_type   = delete $args{auto_type};
+    my $history     = delete $args{history};
+
+    my $groups = $self->groups_deeply(%args);
+    my @entries;
+
+    return File::KDBX::Iterator->new(sub {
+        if (!@entries) {
+            while (my $group = $groups->next) {
+                next if $searching && !$group->effective_enable_searching;
+                next if $auto_type && !$group->effective_enable_auto_type;
+                @entries = @{$group->entries};
+                @entries = grep { $_->auto_type->{enabled} } @entries if $auto_type;
+                @entries = map { ($_, @{$_->history}) } @entries if $history;
+                last if @entries;
+            }
+        }
+        shift @entries;
+    });
 }
 
 =method add_entry
@@ -122,49 +145,46 @@ sub remove_entry {
 sub groups {
     my $self = shift;
     my $groups = $self->{groups} //= [];
-    # FIXME - Looping through groups on each access is too expensive.
-    @$groups = map { $self->_wrap_group($_, $self->kdbx) } @$groups;
+    if (@$groups && !blessed($groups->[0])) {
+        @$groups = map { $self->_wrap_group($_, $self->kdbx) } @$groups;
+    }
+    assert { !any { !blessed $_ } @$groups };
     return $groups;
 }
 
-=method all_groups
-
-    \@groups = $group->all_groups(%options);
-
-Get all groups within a group, deeply, in a flat array. Supported options:
-
-=cut
-
-sub all_groups {
+sub groups_deeply {
     my $self = shift;
-
-    my @groups;
-    for my $subgroup (@{$self->groups}) {
-        push @groups, @{$subgroup->all_groups};
-    }
-
-    return \@groups;
-}
-
-=method find_groups
-
-    @groups = $kdbx->find_groups($query, %options);
-
-Find all groups deeply that match to a query. Options are the same as for L</all_groups>.
-
-See L</QUERY> for a description of what C<$query> can be.
-
-=cut
-
-sub find_groups {
-    my $self = shift;
-    my $query = shift or throw 'Must provide a query';
     my %args = @_;
-    my %all_groups = ( # FIXME
-        base        => $args{base},
-        inclusive   => $args{inclusive},
-    );
-    return @{search($self->all_groups(%all_groups), is_arrayref($query) ? @$query : $query)};
+
+    my @groups = ($args{inclusive} // 1) ? $self : @{$self->groups};
+    my $algo = lc($args{algorithm} || 'ids');
+
+    if ($algo eq 'dfs') {
+        my %visited;
+        return File::KDBX::Iterator->new(sub {
+            my $next = shift @groups or return;
+            if (!$visited{Hash::Util::FieldHash::id($next)}++) {
+                while (my @children = @{$next->groups}) {
+                    unshift @groups, @children, $next;
+                    $next = shift @groups;
+                    $visited{Hash::Util::FieldHash::id($next)}++;
+                }
+            }
+            $next;
+        });
+    }
+    elsif ($algo eq 'bfs') {
+        return File::KDBX::Iterator->new(sub {
+            my $next = shift @groups or return;
+            push @groups, @{$next->groups};
+            $next;
+        });
+    }
+    return File::KDBX::Iterator->new(sub {
+        my $next = shift @groups or return;
+        unshift @groups, @{$next->groups};
+        $next;
+    });
 }
 
 sub _kpx_groups { shift->groups(@_) }
@@ -207,6 +227,32 @@ sub remove_group {
 }
 
 ##############################################################################
+
+sub objects_deeply {
+    my $self = shift;
+    my %args = @_;
+
+    my $searching   = delete $args{searching};
+    my $auto_type   = delete $args{auto_type};
+    my $history     = delete $args{history};
+
+    my $groups = $self->groups_deeply(%args);
+    my @entries;
+
+    return File::KDBX::Iterator->new(sub {
+        if (!@entries) {
+            while (my $group = $groups->next) {
+                next if $searching && !$group->effective_enable_searching;
+                next if $auto_type && !$group->effective_enable_auto_type;
+                @entries = @{$group->entries};
+                @entries = grep { $_->auto_type->{enabled} } @entries if $auto_type;
+                @entries = map { ($_, @{$_->history}) } @entries if $history;
+                return $group;
+            }
+        }
+        shift @entries;
+    });
+}
 
 =method add_object
 

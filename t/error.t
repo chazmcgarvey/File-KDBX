@@ -3,6 +3,8 @@
 use warnings;
 use strict;
 
+BEGIN { delete $ENV{DEBUG} }
+
 use lib 't/lib';
 use TestCommon;
 
@@ -28,17 +30,6 @@ subtest 'Errors' => sub {
     my $trace = $error->trace;
     ok 0 < @$trace, 'Errors record a stacktrace';
     like $trace->[0], qr!^uh oh at \H+error\.t line \d+$!, 'Stacktrace is correct';
-
-    {
-        local $ENV{DEBUG} = '';
-        like "$error", qr!^uh oh at \H+error\.t line \d+\.$!, 'Errors stringify without stacktrace';
-    }
-
-    {
-        local $ENV{DEBUG} = '1';
-        like "$error", qr!^uh oh at \H+error\.t line \d+\.\nbless!,
-            'Errors stringify with stacktrace when DEBUG environment variable is set';
-    }
 
     $error = exception { File::KDBX::Error->throw('uh oh') };
     like $error, qr/uh oh/, 'Errors can be thrown using the "throw" constructor';

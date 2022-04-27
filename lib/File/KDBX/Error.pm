@@ -5,7 +5,7 @@ use warnings;
 use strict;
 
 use Exporter qw(import);
-use Scalar::Util qw(blessed);
+use Scalar::Util qw(blessed looks_like_number);
 use namespace::clean -except => 'import';
 
 our $VERSION = '999.999'; # VERSION
@@ -21,6 +21,13 @@ BEGIN {
     else {
         eval qq{package $WARNINGS_CATEGORY; use warnings::register; 1}; ## no critic ProhibitStringyEval
     }
+
+    my $debug = $ENV{DEBUG};
+    $debug = looks_like_number($debug) ? (0 + $debug) : ($debug ? 1 : 0);
+    *DEBUG = $debug == 1 ? sub() { 1 } :
+             $debug == 2 ? sub() { 2 } :
+             $debug == 3 ? sub() { 3 } :
+             $debug == 4 ? sub() { 4 } : sub() { 0 };
 }
 
 use overload '""' => 'to_string', cmp => '_cmp';
@@ -151,7 +158,7 @@ sub to_string {
     my $self = shift;
     my $msg = "$self->{trace}[0]";
     $msg .= '.' if $msg !~ /[\.\!\?]$/;
-    if ($ENV{DEBUG}) {
+    if (2 <= DEBUG) {
         require Data::Dumper;
         local $Data::Dumper::Indent = 1;
         local $Data::Dumper::Quotekeys = 0;

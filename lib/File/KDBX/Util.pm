@@ -20,12 +20,12 @@ use namespace::clean -except => 'import';
 our $VERSION = '999.999'; # VERSION
 
 our %EXPORT_TAGS = (
-    assert      => [qw(assert_64bit)],
+    assert      => [qw(DEBUG assert assert_64bit)],
     class       => [qw(extends has list_attributes)],
     clone       => [qw(clone clone_nomagic)],
     coercion    => [qw(to_bool to_number to_string to_time to_tristate to_uuid)],
     crypt       => [qw(pad_pkcs7)],
-    debug       => [qw(dumper)],
+    debug       => [qw(DEBUG dumper)],
     fork        => [qw(can_fork)],
     function    => [qw(memoize recurse_limit)],
     empty       => [qw(empty nonempty)],
@@ -33,7 +33,7 @@ our %EXPORT_TAGS = (
     gzip        => [qw(gzip gunzip)],
     io          => [qw(is_readable is_writable read_all)],
     load        => [qw(load_optional load_xs try_load_optional)],
-    search      => [qw(query search search_limited simple_expression_query)],
+    search      => [qw(query search simple_expression_query)],
     text        => [qw(snakify trim)],
     uuid        => [qw(format_uuid generate_uuid is_uuid uuid UUID_NULL)],
     uri         => [qw(split_url uri_escape_utf8 uri_unescape_utf8)],
@@ -41,6 +41,15 @@ our %EXPORT_TAGS = (
 
 $EXPORT_TAGS{all} = [map { @$_ } values %EXPORT_TAGS];
 our @EXPORT_OK = @{$EXPORT_TAGS{all}};
+
+BEGIN {
+    my $debug = $ENV{DEBUG};
+    $debug = looks_like_number($debug) ? (0 + $debug) : ($debug ? 1 : 0);
+    *DEBUG = $debug == 1 ? sub() { 1 } :
+             $debug == 2 ? sub() { 2 } :
+             $debug == 3 ? sub() { 3 } :
+             $debug == 4 ? sub() { 4 } : sub() { 0 };
+}
 
 my %OPS = (
     'eq'        =>  2, # binary
@@ -115,6 +124,32 @@ sub load_xs {
         return $XS_LOADED if !$version;
         return !!eval { File::KDBX::XS->VERSION($version); 1 };
     }
+}
+
+=func assert
+
+    assert { ... };
+
+Write an executable comment. Only executed if C<DEBUG> is set in the environment.
+
+=cut
+
+sub assert(&) { ## no critic (ProhibitSubroutinePrototypes)
+    return if !DEBUG;
+    my $code = shift;
+    return if $code->();
+
+    (undef, my $file, my $line) = caller;
+    $file =~ s!([^/\\]+)$!$1!;
+    my $assertion = '';
+    if (try_load_optional('B::Deparse')) {
+        my $deparse = B::Deparse->new(qw{-P -x9});
+        $assertion = $deparse->coderef2text($code);
+        $assertion =~ s/^\{(?:\s*(?:package[^;]+|use[^;]+);)*\s*(.*?);\s*\}$/$1/s;
+        $assertion =~ s/\s+/ /gs;
+        $assertion = ": $assertion";
+    }
+    die "$0: $file:$line: Assertion failed$assertion\n";
 }
 
 =func assert_64bit
@@ -590,8 +625,9 @@ sub load_optional {
     for my $module (@_) {
         eval { load $module };
         if (my $err = $@) {
-            warn $err if $ENV{DEBUG};
-            throw "Missing dependency: Please install $module to use this feature.\n", module => $module;
+            throw "Missing dependency: Please install $module to use this feature.\n",
+                module  => $module,
+                error   => $err;
         }
     }
     return wantarray ? @_ : $_[0];
@@ -725,33 +761,6 @@ sub search {
     my @match;
     for my $item (@$list) {
         push @match, $item if $query->($item);
-    }
-    return \@match;
-}
-
-=for Pod::Coverage search_limited
-
-=cut
-
-sub search_limited {
-    my $list    = shift;
-    my $query   = shift;
-    my $limit   = shift // 1;
-
-    if (is_coderef($query) && !@_) {
-        # already a query
-    }
-    elsif (is_scalarref($query)) {
-        $query = simple_expression_query($$query, @_);
-    }
-    else {
-        $query = query($query, @_);
-    }
-
-    my @match;
-    for my $item (@$list) {
-        push @match, $item if $query->($item);
-        last if $limit <= @match;
     }
     return \@match;
 }
@@ -921,7 +930,7 @@ sub try_load_optional {
     for my $module (@_) {
         eval { load $module };
         if (my $err = $@) {
-            warn $err if $ENV{DEBUG};
+            warn $err if 3 <= DEBUG;
             return;
         }
     }
