@@ -367,10 +367,10 @@ sub _resolve_binary_refs {
     my $self = shift;
     my $kdbx = $self->kdbx;
 
-    my $entries = $kdbx->all_entries(history => 1);
     my $pool = $kdbx->binaries;
 
-    for my $entry (@$entries) {
+    my $entries = $kdbx->entries(history => 1);
+    while (my $entry = $entries->next) {
         while (my ($key, $binary) = each %{$entry->binaries}) {
             my $ref = $binary->{ref} // next;
             next if defined $binary->{value};

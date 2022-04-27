@@ -178,8 +178,8 @@ sub _write_xml_binaries {
     my $new_ref = keys %{$self->_binaries_written};
     my $written = $self->_binaries_written;
 
-    my $entries = $kdbx->all_entries(history => true);
-    for my $entry (@$entries) {
+    my $entries = $kdbx->entries(history => 1);
+    while (my $entry = $entries->next) {
         for my $key (keys %{$entry->binaries}) {
             my $binary = $entry->binaries->{$key};
             if (defined $binary->{ref} && defined $kdbx->binaries->{$binary->{ref}}) {

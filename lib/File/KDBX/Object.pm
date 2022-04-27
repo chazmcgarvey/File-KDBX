@@ -353,6 +353,8 @@ Remove the object from the database. If the object is a group, all contained obj
 =cut
 
 sub remove {
+    # TODO - need a way to not signal database because there are times like in the KDB loader and meta streams
+    # where we do not want to add UUIDs to deleted objects
     my $self = shift;
     my $parent = $self->parent;
     $parent->remove_object($self) if $parent;

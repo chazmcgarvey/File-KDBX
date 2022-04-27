@@ -90,16 +90,18 @@ sub convert_keepass_to_kdbx {
         }
     }
 
-    for my $entry ($kdbx->find_entries({
+    $kdbx->entries
+    ->grep({
         title       => 'Meta-Info',
         username    => 'SYSTEM',
         url         => '$',
         icon_id     => 0,
         -nonempty   => 'notes',
-    })) {
-        _read_meta_stream($kdbx, $entry);
-        $entry->remove;
-    }
+    })
+    ->each(sub {
+        _read_meta_stream($kdbx, $_);
+        $_->remove; # TODO do not signal
+    });
 
     return $kdbx;
 }
@@ -120,7 +122,7 @@ sub _read_meta_stream {
             read_all $fh, $buf, 5 or goto PARSE_ERROR;
             my ($group_id, $expanded) = unpack('L< C', $buf);
             my $uuid = _decode_uuid($group_id) // next;
-            my ($group) = $kdbx->find_groups({uuid => $uuid});
+            my $group = $kdbx->groups->grep({uuid => $uuid})->next;
             $group->is_expanded($expanded) if $group;
         }
     }
@@ -139,7 +141,7 @@ sub _read_meta_stream {
             read_all $fh, $buf, 20 or goto PARSE_ERROR;
             my ($uuid, $icon_index) = unpack('a16 L<', $buf);
             next if !$icons[$icon_index];
-            my ($entry) = $kdbx->find_entries({uuid => $uuid});
+            my $entry = $kdbx->entries->grep({uuid => $uuid})->next;
             $entry->custom_icon_uuid($icons[$icon_index]) if $entry;
         }
         for (my $i = 0; $i < $num_groups; ++$i) {
@@ -147,7 +149,7 @@ sub _read_meta_stream {
             my ($group_id, $icon_index) = unpack('L<2', $buf);
             next if !$icons[$icon_index];
             my $uuid = _decode_uuid($group_id) // next;
-            my ($group) = $kdbx->find_groups({uuid => $uuid});
+            my $group = $kdbx->groups->grep({uuid => $uuid})->next;
             $group->custom_icon_uuid($icons[$icon_index]) if $group;
         }
     }

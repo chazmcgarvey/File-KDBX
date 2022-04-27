@@ -8,6 +8,7 @@ use Crypt::PRNG qw(random_bytes);
 use Devel::GlobalDestruction;
 use File::KDBX::Constants qw(:all);
 use File::KDBX::Error;
+use File::KDBX::Iterator;
 use File::KDBX::Safe;
 use File::KDBX::Util qw(:class :coercion :empty :search :uuid erase simple_expression_query snakify);
 use Hash::Util::FieldHash qw(fieldhashes);
@@ -123,9 +124,7 @@ sub STORABLE_thaw {
     # Dualvars aren't cloned as dualvars, so coerce the compression flags.
     $self->compression_flags($self->compression_flags);
 
-    for my $object (@{$self->all_groups}, @{$self->all_entries(history => 1)}) {
-        $object->kdbx($self);
-    }
+    $self->objects(history => 1)->each(sub { $_->kdbx($self) });
 }
 
 ##############################################################################
@@ -363,23 +362,31 @@ sub minimum_version {
         nonempty $_->{name} || nonempty $_->{last_modification_time}
     } @{$self->custom_icons};
 
-    return KDBX_VERSION_4_1 if any {
-        nonempty $_->previous_parent_group || nonempty $_->tags ||
-        any { nonempty $_->{last_modification_time} } values %{$_->custom_data}
-    } @{$self->all_groups};
+    return KDBX_VERSION_4_1 if $self->groups->next(sub {
+        nonempty $_->previous_parent_group ||
+        nonempty $_->tags ||
+        (any { nonempty $_->{last_modification_time} } values %{$_->custom_data})
+        # TODO replace next paragraph with this
+        # || $_->entries(history => 1)->next(sub {
+        #     nonempty $_->previous_parent_group ||
+        #     (defined $_->quality_check && !$_->quality_check) ||
+        #     (any { nonempty $_->{last_modification_time} } values %{$_->custom_data})
+        # })
+    });
 
-    return KDBX_VERSION_4_1 if any {
-        nonempty $_->previous_parent_group || (defined $_->quality_check && !$_->quality_check) ||
-        any { nonempty $_->{last_modification_time} } values %{$_->custom_data}
-    } @{$self->all_entries(history => 1)};
+    return KDBX_VERSION_4_1 if $self->entries(history => 1)->next(sub {
+        nonempty $_->previous_parent_group ||
+        (defined $_->quality_check && !$_->quality_check) ||
+        (any { nonempty $_->{last_modification_time} } values %{$_->custom_data})
+    });
 
     return KDBX_VERSION_4_0 if $self->kdf->uuid ne KDF_UUID_AES;
 
     return KDBX_VERSION_4_0 if nonempty $self->public_custom_data;
 
-    return KDBX_VERSION_4_0 if any {
+    return KDBX_VERSION_4_0 if $self->objects->next(sub {
         nonempty $_->custom_data
-    } @{$self->all_groups}, @{$self->all_entries(history => 1)};
+    });
 
     return KDBX_VERSION_3_1;
 }
@@ -415,6 +422,9 @@ sub root {
     return $self->_wrap_group($self->{root});
 }
 
+# Called by File::KeePass::KDBX so that a File::KDBX an be treated as a File::KDBX::Group in that both types
+# can have subgroups. File::KDBX already has a `groups' method that does something different from the
+# File::KDBX::Groups `groups' method.
 sub _kpx_groups {
     my $self = shift;
     return [] if !$self->{root};
@@ -508,7 +518,7 @@ sub add_group {
 
     # find the right group to add the group to
     my $parent = delete $args{group} // delete $args{parent} // $self->root;
-    ($parent) = $self->find_groups({uuid => $parent}) if !ref $parent;
+    $parent = $self->groups->grep({uuid => $parent})->next if !ref $parent;
     $parent or throw 'Invalid group';
 
     return $parent->add_group(defined $group ? $group : (), %args, kdbx => $self);
@@ -521,58 +531,54 @@ sub _wrap_group {
     return File::KDBX::Group->wrap($group, $self);
 }
 
-=method all_groups
+=method groups
 
-    \@groups = $kdbx->all_groups(%options);
-    \@groups = $kdbx->all_groups($base_group, %options);
+    \&iterator = $kdbx->groups(%options);
+    \&iterator = $kdbx->groups($base_group, %options);
 
-Get all groups deeply in a database, or all groups within a specified base group, in a flat array. Supported
-options:
+Get an iterator over I<groups> within a database. Options:
 
 =for :list
-* C<base> - Only include groups within a base group (same as C<$base_group>) (default: root)
-* C<include_base> - Include the base group in the results (default: true)
+* C<base> - Only include groups within a base group (same as C<$base_group>) (default: L</root>)
+* C<inclusive> - Include the base group in the results (default: true)
+* C<algorithm> - Search algorithm, one of C<ids>, C<bfs> or C<dfs> (default: C<ids>)
 
 =cut
 
-sub all_groups {
+sub groups {
     my $self = shift;
     my %args = @_ % 2 == 0 ? @_ : (base => shift, @_);
     my $base = $args{base} // $self->root;
 
-    # my @groups;
-    # push @groups, $self->_wrap_group($base) if $args{include_base} // 1;
-    # push @groups, @{$base->all_groups};
-    # return \@groups;
-    my @groups = $args{include_base} // 1 ? $self->_wrap_group($base) : ();
+    my @groups = ($args{inclusive} // 1) ? $base : @{$base->groups};
+    my $algo = lc($args{algorithm} || 'ids');
 
-    for my $subgroup (@{$base->{groups} || []}) {
-        my $more = $self->all_groups($subgroup);
-        push @groups, @$more;
+    if ($algo eq 'dfs') {
+        my %visited;
+        return File::KDBX::Iterator->new(sub {
+            my $next = shift @groups or return;
+            if (!$visited{Hash::Util::FieldHash::id($next)}++) {
+                while (my @children = @{$next->groups}) {
+                    unshift @groups, @children, $next;
+                    $next = shift @groups;
+                    $visited{Hash::Util::FieldHash::id($next)}++;
+                }
+            }
+            $next;
+        });
     }
-
-    return \@groups;
-}
-
-=method find_groups
-
-    @groups = $kdbx->find_groups($query, %options);
-
-Find all groups deeply that match to a query. Options are the same as for L</all_groups>.
-
-See L</QUERY> for a description of what C<$query> can be.
-
-=cut
-
-sub find_groups {
-    my $self = shift;
-    my $query = shift or throw 'Must provide a query';
-    my %args = @_;
-    my %all_groups = (
-        base            => $args{base},
-        include_base    => $args{include_base},
-    );
-    return @{search($self->all_groups(%all_groups), is_arrayref($query) ? @$query : $query)};
+    elsif ($algo eq 'bfs') {
+        return File::KDBX::Iterator->new(sub {
+            my $next = shift @groups or return;
+            push @groups, @{$next->groups};
+            $next;
+        });
+    }
+    return File::KDBX::Iterator->new(sub {
+        my $next = shift @groups or return;
+        unshift @groups, @{$next->groups};
+        $next;
+    });
 }
 
 ##############################################################################
@@ -597,7 +603,7 @@ sub add_entry {
 
     # find the right group to add the entry to
     my $parent = delete $args{group} // delete $args{parent} // $self->root;
-    ($parent) = $self->find_groups({uuid => $parent}) if !ref $parent;
+    $parent = $self->groups->grep({uuid => $parent})->next if !ref $parent;
     $parent or throw 'Invalid group';
 
     return $parent->add_entry(defined $entry ? $entry : (), %args, kdbx => $self);
@@ -610,96 +616,87 @@ sub _wrap_entry {
     return File::KDBX::Entry->wrap($entry, $self);
 }
 
-=method all_entries
+=method entries
 
-    \@entries = $kdbx->all_entries(%options);
-    \@entries = $kdbx->all_entries($base_group, %options);
+    \&iterator = $kdbx->entries(%options);
+    \&iterator = $kdbx->entries($base_group, %options);
 
-Get entries deeply in a database, in a flat array. Supported options:
+Get an iterator over I<entries> within a database. Supports the same options as L</groups>, plus some new
+ones:
 
 =for :list
-* C<base> - Only include entries within a base group (same as C<$base_group>) (default: root)
 * C<auto_type> - Only include entries with auto-type enabled (default: false, include all)
-* C<search> - Only include entries within groups with search enabled (default: false, include all)
-* C<history> - Also include historical entries (default: false, include only active entries)
+* C<searching> - Only include entries within groups with search enabled (default: false, include all)
+* C<history> - Also include historical entries (default: false, include only current entries)
 
 =cut
 
-sub all_entries {
+sub entries {
     my $self = shift;
     my %args = @_ % 2 == 0 ? @_ : (base => shift, @_);
 
-    my $base        = $args{base} // $self->root;
-    my $history     = $args{history};
-    my $search      = $args{search};
+    my $searching   = $args{searching};
     my $auto_type   = $args{auto_type};
+    my $history     = $args{history};
 
-    my $enable_auto_type = $base->{enable_auto_type} // true;
-    my $enable_searching = $base->{enable_searching} // true;
-
+    my $groups = $self->groups(%args);
     my @entries;
-    if ((!$search || $enable_searching) && (!$auto_type || $enable_auto_type)) {
-        push @entries,
-            map { $self->_wrap_entry($_) }
-            grep { !$auto_type || $_->{auto_type}{enabled} }
-            map { $_, $history ? @{$_->{history} || []} : () }
-            @{$base->{entries} || []};
-    }
 
-    for my $subgroup (@{$base->{groups} || []}) {
-        my $more = $self->all_entries($subgroup,
-            auto_type   => $auto_type,
-            search      => $search,
-            history     => $history,
-        );
-        push @entries, @$more;
-    }
-
-    return \@entries;
+    return File::KDBX::Iterator->new(sub {
+        if (!@entries) {
+            while (my $group = $groups->next) {
+                next if $searching && !$group->effective_enable_searching;
+                next if $auto_type && !$group->effective_enable_auto_type;
+                @entries = @{$group->entries};
+                @entries = grep { $_->auto_type->{enabled} } @entries if $auto_type;
+                @entries = map { ($_, @{$_->history}) } @entries if $history;
+                last if @entries;
+            }
+        }
+        shift @entries;
+    });
 }
 
-=method find_entries
+##############################################################################
 
-=method find_entries_simple
+=method objects
 
-    @entries = $kdbx->find_entries($query, %options);
+    \&iterator = $kdbx->entries(%options);
+    \&iterator = $kdbx->entries($base_group, %options);
 
-    @entries = $kdbx->find_entries_simple($expression, \@fields, %options);
-    @entries = $kdbx->find_entries_simple($expression, $operator, \@fields, %options);
-
-Find all entries deeply that match a query. Options are the same as for L</all_entries>.
-
-See L</QUERY> for a description of what C<$query> can be.
+Get an iterator over I<objects> within a database. Groups and entries are considered objects, so this is
+essentially a combination of L</groups> and L</entries>. This won't often be useful, but it can be convenient
+for maintenance tasks. This method takes the same options as L</groups> and L</entries>.
 
 =cut
 
-sub find_entries {
+sub objects {
     my $self = shift;
-    my $query = shift or throw 'Must provide a query';
-    my %args = @_;
-    my %all_entries = (
-        base        => $args{base},
-        auto_type   => $args{auto_type},
-        search      => $args{search},
-        history     => $args{history},
-    );
-    my $limit = delete $args{limit};
-    if (defined $limit) {
-        return @{search_limited($self->all_entries(%all_entries), is_arrayref($query) ? @$query : $query, $limit)};
-    }
-    else {
-        return @{search($self->all_entries(%all_entries), is_arrayref($query) ? @$query : $query)};
-    }
+    my %args = @_ % 2 == 0 ? @_ : (base => shift, @_);
+
+    my $searching   = $args{searching};
+    my $auto_type   = $args{auto_type};
+    my $history     = $args{history};
+
+    my $groups = $self->groups(%args);
+    my @entries;
+
+    return File::KDBX::Iterator->new(sub {
+        if (!@entries) {
+            while (my $group = $groups->next) {
+                next if $searching && !$group->effective_enable_searching;
+                next if $auto_type && !$group->effective_enable_auto_type;
+                @entries = @{$group->entries};
+                @entries = grep { $_->auto_type->{enabled} } @entries if $auto_type;
+                @entries = map { ($_, @{$_->history}) } @entries if $history;
+                return $group;
+            }
+        }
+        shift @entries;
+    });
 }
 
-sub find_entries_simple {
-    my $self = shift;
-    my $text = shift;
-    my $op   = @_ && !is_ref($_[0]) ? shift : undef;
-    my $fields = shift;
-    is_arrayref($fields) or throw q{Usage: find_entries_simple($expression, [$op,] \@fields)};
-    return $self->find_entries([\$text, $op, $fields], @_);
-}
+sub __iter__ { $_[0]->objects }
 
 ##############################################################################
 
@@ -983,8 +980,8 @@ references are resolved automatically while expanding entry strings (i.e. replac
 use this method to resolve on-the-fly references that aren't part of any actual string in the database.
 
 If the reference does not resolve to any field, C<undef> is returned. If the reference resolves to multiple
-fields, only the first one is returned (in the same order as L</all_entries>). To avoid ambiguity, you can
-refer to a specific entry by its UUID.
+fields, only the first one is returned (in the same order as iterated by L</entries>). To avoid ambiguity, you
+can refer to a specific entry by its UUID.
 
 The syntax of a reference is: C<< {REF:<WantedField>@<SearchIn>:<Text>} >>. C<Text> is a
 L</"Simple Expression">. C<WantedField> and C<SearchIn> are both single character codes representing a field:
@@ -1046,14 +1043,14 @@ sub resolve_reference {
     my $query = $search_in eq 'uuid' ? query($search_in => uuid($text))
                                      : simple_expression_query($text, '=~', $search_in);
 
-    my ($entry) = $self->find_entries($query, limit => 1);
+    my $entry = $self->entries->grep($query)->next;
     $entry or return;
 
     return $entry->$wanted;
 }
 
 our %PLACEHOLDERS = (
-    # placeholder         => sub { my ($entry, $arg) = @_; ... };
+    # 'PLACEHOLDER'       => sub { my ($entry, $arg) = @_; ... };
     'TITLE'             => sub { $_[0]->expanded_title },
     'USERNAME'          => sub { $_[0]->expanded_username },
     'PASSWORD'          => sub { $_[0]->expanded_password },
@@ -1154,10 +1151,9 @@ sub lock {
 
     my @strings;
 
-    my $entries = $self->all_entries(history => 1);
-    for my $entry (@$entries) {
-        push @strings, grep { $_->{protect} } values %{$entry->strings}, values %{$entry->binaries};
-    }
+    $self->entries(history => 1)->each(sub {
+        push @strings, grep { $_->{protect} } values %{$_->strings}, values %{$_->binaries};
+    });
 
     $self->_safe(File::KDBX::Safe->new(\@strings));
 
@@ -1516,16 +1512,16 @@ sub _handle_entry_uuid_changed {
     my $new_pretty = format_uuid($new_uuid);
     my $fieldref_match = qr/\{REF:([TUPANI])\@I:\Q$old_pretty\E\}/is;
 
-    for my $entry (@{$self->all_entries}) {
-        $entry->previous_parent_group($new_uuid) if $old_uuid eq ($entry->{previous_parent_group} // '');
+    $self->entries->each(sub {
+        $_->previous_parent_group($new_uuid) if $old_uuid eq ($_->{previous_parent_group} // '');
 
-        for my $string (values %{$entry->strings}) {
+        for my $string (values %{$_->strings}) {
             next if !defined $string->{value} || $string->{value} !~ $fieldref_match;
-            my $txn = $entry->begin_work;
+            my $txn = $_->begin_work;
             $string->{value} =~ s/$fieldref_match/{REF:$1\@I:$new_pretty}/g;
             $txn->commit;
         }
-    }
+    });
 }
 
 sub _handle_group_uuid_changed {
@@ -1540,13 +1536,13 @@ sub _handle_group_uuid_changed {
     $self->last_selected_group($new_uuid)       if $old_uuid eq ($meta->{last_selected_group} // '');
     $self->last_top_visible_group($new_uuid)    if $old_uuid eq ($meta->{last_top_visible_group} // '');
 
-    for my $group (@{$self->all_groups}) {
-        $group->last_top_visible_entry($new_uuid) if $old_uuid eq ($group->{last_top_visible_entry} // '');
-        $group->previous_parent_group($new_uuid) if $old_uuid eq ($group->{previous_parent_group} // '');
-    }
-    for my $entry (@{$self->all_entries}) {
-        $entry->previous_parent_group($new_uuid) if $old_uuid eq ($entry->{previous_parent_group} // '');
-    }
+    $self->groups->each(sub {
+        $_->last_top_visible_entry($new_uuid)   if $old_uuid eq ($_->{last_top_visible_entry} // '');
+        $_->previous_parent_group($new_uuid)    if $old_uuid eq ($_->{previous_parent_group} // '');
+    });
+    $self->entries->each(sub {
+        $_->previous_parent_group($new_uuid)    if $old_uuid eq ($_->{previous_parent_group} // '');
+    });
 }
 
 #########################################################################################
@@ -1760,9 +1756,10 @@ __END__
 
     $kdbx = File::KDBX->load_file('passwords.kdbx', 'M@st3rP@ssw0rd!');
 
-    for my $entry (@{ $kdbx->all_entries }) {
+    kdbx->entries->each(sub {
+        my ($entry) = @_;
         say 'Entry: ', $entry->title;
-    }
+    });
 
 =head1 DESCRIPTION
 
@@ -1818,31 +1815,49 @@ considerations.
     my $kdbx = File::KDBX->load_file('mypasswords.kdbx', 'master password CHANGEME');
     $kdbx->unlock;
 
-    for my $entry (@{ $kdbx->all_entries }) {
-        say 'Found password for ', $entry->title, ':';
+    $kdbx->entries->each(sub {
+        my ($entry) = @_;
+        say 'Found password for ', $entry->title;
         say '  Username: ', $entry->username;
         say '  Password: ', $entry->password;
-    }
+    });
 
 =head2 Search for entries
 
-    my @entries = $kdbx->find_entries({
-        title => 'WayneCorp',
-    }, search => 1);
+    my @entries = $kdbx->entries(searching => 1)
+        ->grep(title => 'WayneCorp')
+        ->each;     # return all matches
+
+The C<searching> option limits results to only entries within groups with searching enabled. Other options are
+also available. See L</entries>.
 
 See L</QUERY> for many more query examples.
 
 =head2 Search for entries by auto-type window association
 
-    my @entry_key_sequences = $kdbx->find_entries_for_window('WayneCorp - Mozilla Firefox');
-    for my $pair (@entry_key_sequences) {
-        my ($entry, $key_sequence) = @$pair;
-        say 'Entry title: ', $entry->title, ', key sequence: ', $key_sequence;
-    }
+    my $window_title = 'WayneCorp - Mozilla Firefox';
+
+    my $entries = $kdbx->entries(auto_type => 1)
+        ->filter(sub {
+            my $ata = $_->auto_type_associations->grep(sub { $_->{window} =~ $window_title })->next;
+            return [$_, $ata->{keystroke_sequence}] if $ata;
+        })
+        ->each(sub {
+            my ($entry, $keys) = @$_;
+            say 'Entry title: ', $entry->title, ', key sequence: ', $keys;
+        });
 
 Example output:
 
     Entry title: WayneCorp, key sequence: {PASSWORD}{ENTER}
+
+=head2 Remove entries from a database
+
+    $kdbx->entries
+        ->grep(notes => {'=~' => qr/too old/i})
+        ->each(sub { $_->recycle });
+
+Recycle all entries with the string "too old" appearing in the B<Notes> string.
 
 =head1 SECURITY
 
@@ -1938,6 +1953,8 @@ of the program's address space, like C<CryptProtectMemory> for Windows. This cou
 unfortunately not portable.
 
 =head1 QUERY
+
+B<TODO> - All these examples are WRONG now.
 
 Several methods take a I<query> as an argument (e.g. L</find_entries>). A query is just a subroutine that you
 can either write yourself or have generated for you based on either a simple expression or a declarative
@@ -2142,7 +2159,8 @@ All of these query mechanisms described in this section are just tools, each wit
 If the tools are getting in your way, you can of course iterate over the contents of a database and implement
 your own query logic, like this:
 
-    for my $entry (@{ $kdbx->all_entries }) {
+    my $entries = $kdbx->entries;
+    while (my $entry = $entries->next) {
         if (wanted($entry)) {
             do_something($entry);
         }

@@ -161,8 +161,8 @@ sub find_groups {
     my $query = shift or throw 'Must provide a query';
     my %args = @_;
     my %all_groups = ( # FIXME
-        base            => $args{base},
-        include_base    => $args{include_base},
+        base        => $args{base},
+        inclusive   => $args{inclusive},
     );
     return @{search($self->all_groups(%all_groups), is_arrayref($query) ? @$query : $query)};
 }
@@ -330,6 +330,33 @@ sub _commit {
     my $time = gmtime;
     $self->last_modification_time($time);
     $self->last_access_time($time);
+}
+
+sub effective_default_auto_type_sequence {
+    my $self = shift;
+    my $sequence = $self->default_auto_type_sequence;
+    return $sequence if defined $sequence;
+
+    my $parent = $self->parent or return '{USERNAME}{TAB}{PASSWORD}{ENTER}';
+    return $parent->effective_default_auto_type_sequence;
+}
+
+sub effective_enable_auto_type {
+    my $self = shift;
+    my $enabled = $self->enable_auto_type;
+    return $enabled if defined $enabled;
+
+    my $parent = $self->parent or return true;
+    return $parent->effective_enable_auto_type;
+}
+
+sub effective_enable_searching {
+    my $self = shift;
+    my $enabled = $self->enable_searching;
+    return $enabled if defined $enabled;
+
+    my $parent = $self->parent or return true;
+    return $parent->effective_enable_searching;
 }
 
 1;

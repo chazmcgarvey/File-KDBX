@@ -52,18 +52,19 @@ subtest 'Cloning' => sub {
         'Entry in database and its copy with username ref have same expanded username';
 
     $copy = $entry->clone;
-    is @{$kdbx->all_entries}, 1, 'Still only one entry after cloning';
+    is $kdbx->entries->size, 1, 'Still only one entry after cloning';
 
     $copy = $entry->clone(parent => 1);
-    is @{$kdbx->all_entries}, 2, 'New copy added to database if clone with parent option';
-    my ($e1, $e2) = @{$kdbx->all_entries};
+    is $kdbx->entries->size, 2, 'New copy added to database if clone with parent option';
+    my ($e1, $e2) = $kdbx->entries->each;
     isnt $e1, $e2, 'Entry and its copy in the database are different objects';
     is $e1->title, $e2->title, 'Entry copy has the same title as the original entry';
 
     $copy = $entry->clone(parent => 1, relabel => 1);
-    is @{$kdbx->all_entries}, 3, 'New copy added to database if clone with parent option';
-    is $kdbx->all_entries->[2], $copy, 'New copy and new entry in the database match';
-    is $kdbx->all_entries->[2]->title, "foo - Copy", 'New copy has a modified title';
+    is $kdbx->entries->size, 3, 'New copy added to database if clone with parent option';
+    my $e3 = $kdbx->entries->skip(2)->next;
+    is $e3, $copy, 'New copy and new entry in the database match';
+    is $e3->title, 'foo - Copy', 'New copy has a modified title';
 
     $copy = $group->clone;
     cmp_deeply $copy, $group, 'Group and its clone are identical';
@@ -80,10 +81,10 @@ subtest 'Cloning' => sub {
 
     $copy = $group->clone(relabel => 1);
     is $copy->name, 'Passwords - Copy', 'Group copy relabeled from the original title';
-    is @{$kdbx->all_entries}, 3, 'No new entries were added to the database';
+    is $kdbx->entries->size, 3, 'No new entries were added to the database';
 
     $copy = $group->clone(relabel => 1, parent => 1);
-    is @{$kdbx->all_entries}, 6, 'Copy a group within parent doubles the number of entries in the database';
+    is $kdbx->entries->size, 6, 'Copy a group within parent doubles the number of entries in the database';
     isnt $group->entries->[0]->uuid, $copy->entries->[0]->uuid,
         'First entry in group and its copy are different';
 };

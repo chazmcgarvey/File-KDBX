@@ -107,7 +107,7 @@ subtest 'Verify ProtectedStrings' => sub {
 
     $kdbx->unlock;
 
-    my ($entry) = @{$kdbx->all_entries};
+    my $entry = $kdbx->entries->next;
     is $entry->title, 'Sample Entry', 'Get entry title';
     is $entry->username, 'Protected User Name', 'Get protected username from entry';
     is $entry->password, 'ProtectedPassword', 'Get protected password from entry';

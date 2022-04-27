@@ -28,7 +28,7 @@ use Test::More;
 }
 
 SKIP: {
-    skip 'Tests require fork' if !can_fork;
+    skip 'fork required to test long data streams' if !can_fork;
 
     my $expected_plaintext = "\x64" x (1024*1024*12 - 57);
 

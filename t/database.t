@@ -44,7 +44,7 @@ subtest 'Clone' => sub {
     isnt $kdbx->root->groups->[0]->entries->[0], $copy->root->groups->[0]->entries->[0],
         'Clone entry is a different object';
 
-    my @objects = (@{$copy->all_groups}, @{$copy->all_entries});
+    my @objects = $copy->objects->each;
     subtest 'Cloned objects refer to the cloned database' => sub {
         plan tests => scalar @_;
         for my $object (@objects) {

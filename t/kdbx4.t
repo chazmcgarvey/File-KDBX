@@ -37,8 +37,8 @@ subtest 'Verify Format400' => sub {
     is $kdbx->meta->{database_name}, 'Format400', 'Extract database name from meta';
     is $kdbx->root->name, 'Format400', 'Extract name of root group';
 
-    my ($entry, @other) = $kdbx->find_entries([\'400', 'title']);
-    is @other, 0, 'Database has one entry';
+    my ($entry, @other) = $kdbx->entries->grep(\'400', 'title')->each;
+    is scalar @other, 0, 'Database has one entry';
 
     is $entry->title, 'Format400', 'Entry is titled';
     is $entry->username, 'Format400', 'Entry has a username set';
@@ -81,9 +81,9 @@ subtest 'KDBX4 upgrade' => sub {
 subtest 'KDBX4.1 upgrade' => sub {
     my $kdbx = File::KDBX->new;
 
-    my $group1 = $kdbx->add_group;
-    my $group2 = $kdbx->add_group;
-    my $entry1 = $kdbx->add_entry;
+    my $group1 = $kdbx->add_group(label => 'One');
+    my $group2 = $kdbx->add_group(label => 'Two');
+    my $entry1 = $kdbx->add_entry(label => 'Meh');
 
     $group1->tags('hi');
     is $kdbx->minimum_version, KDBX_VERSION_4_1, 'Groups with tags requires upgrade';
@@ -205,12 +205,12 @@ subtest 'Custom data' => sub {
     ok isBoolean($kdbx2->public_custom_data->{bool}), 'Boolean is indeed a boolean';
     is $kdbx2->public_custom_data->{bytes}, "\1\2\3\4", 'Store some bytes in public custom data';
 
-    my ($group2) = $kdbx2->find_groups({label => 'Group'});
+    my $group2 = $kdbx2->groups->grep(label => 'Group')->next;
     is_deeply $group2->custom_data_value('str'), '你好', 'Store a string in group custom data';
     is_deeply $group2->custom_data_value('num'), '42', 'Store a number in group custom data';
     is_deeply $group2->custom_data_value('bool'), '1', 'Store a boolean in group custom data';
 
-    my ($entry2) = $kdbx2->find_entries({label => 'Entry'});
+    my $entry2 = $kdbx2->entries->grep(label => 'Entry')->next;
     is_deeply $entry2->custom_data_value('str'), '你好', 'Store a string in entry custom data';
     is_deeply $entry2->custom_data_value('num'), '42', 'Store a number in entry custom data';
     is_deeply $entry2->custom_data_value('bool'), '0', 'Store a boolean in entry custom data';

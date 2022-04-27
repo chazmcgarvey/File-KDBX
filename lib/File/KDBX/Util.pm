@@ -376,7 +376,8 @@ Set up the current module to inheret from another module.
 sub extends {
     my $parent  = shift;
     my $caller  = caller;
-    load $parent;
+    # load $parent;
+    eval qq[require $parent];
     no strict 'refs'; ## no critic (ProhibitNoStrict)
     @{"${caller}::ISA"} = $parent;
 }
@@ -758,6 +759,7 @@ sub search_limited {
 =func simple_expression_query
 
     $query = simple_expression_query($expression, @fields);
+    $query = simple_expression_query($expression, $operator, @fields);
 
 Generate a query, like L</query>, to be used with L</search> but built from a "simple expression" as
 L<described here|https://keepass.info/help/base/search.html#mode_se>.

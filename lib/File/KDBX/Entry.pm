@@ -438,9 +438,19 @@ sub binary_value {
     return $binary->{value};
 }
 
+sub searching_enabled {
+    my $self = shift;
+    my $parent = $self->parent;
+    return $parent->effective_enable_searching if $parent;
+    return true;
+}
+
 sub auto_type_enabled {
-    my $entry = shift;
-    # TODO
+    my $self = shift;
+    return false if !$self->auto_type->{enabled};
+    my $parent = $self->parent;
+    return $parent->effective_enable_auto_type if $parent;
+    return true;
 }
 
 ##############################################################################
