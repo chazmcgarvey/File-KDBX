@@ -57,32 +57,17 @@ sub new {
     $item = $iterator->next([\'simple expression', @fields]);
 
 Get the next item or C<undef> if there are no more items. If a query is passed, get the next matching item,
-discarding any items before the matching item that do not match. Example:
+discarding any unmatching items before the matching item. Example:
 
     my $item = $iterator->next(sub { $_->label =~ /Gym/ });
 
 =cut
 
-sub _create_query {
-    my $self = shift;
-    my $code = shift;
-
-    if (is_coderef($code) || overload::Method($code, '&{}')) {
-        return $code;
-    }
-    elsif (is_scalarref($code)) {
-        return simple_expression_query($$code, @_);
-    }
-    else {
-        return query($code, @_);
-    }
-}
-
 sub next {
     my $self = shift;
     my $code = shift or return $self->();
 
-    $code = $self->_create_query($code, @_);
+    $code = query_any($code, @_);
 
     while (defined (local $_ = $self->())) {
         return $_ if $code->($_);
@@ -136,6 +121,8 @@ Get the rest of the items. There are two forms: Without arguments, C<each> retur
 items. Or pass a coderef to be called once per item, in order. The item is passed as the first argument to the
 given subroutine and is also available as C<$_>.
 
+B<NOTE:> This method drains the iterator completely, leaving it empty. See L</CAVEATS>.
+
 =cut
 
 sub each {
@@ -147,17 +134,9 @@ sub each {
     return $self;
 }
 
-=method limit
-
-    \&iterator = $iterator->limit($count);
-
-Get a new iterator draining from an existing iterator but providing only a limited number of items.
-
-=cut
-
-sub limit { shift->head(@_) }
-
 =method grep
+
+=method where
 
     \&iterator = $iterator->grep(\&query);
     \&iterator = $iterator->grep([\'simple expression', @fields]);
@@ -167,11 +146,11 @@ by a query.
 
 =cut
 
+sub where { shift->grep(@_) }
+
 sub grep {
     my $self = shift;
-    my $code = shift;
-
-    $code = $self->_create_query($code, @_);
+    my $code = query_any(@_);
 
     ref($self)->new(sub {
         while (defined (local $_ = $self->())) {
@@ -200,23 +179,6 @@ sub map {
     });
 }
 
-=method filter
-
-    \&iterator = $iterator->filter(\&query);
-    \&iterator = $iterator->filter([\'simple expression', @fields]);
-
-See L<Iterator::Simple/"ifilter $iterable, sub{ CODE }">.
-
-=cut
-
-sub filter {
-    my $self = shift;
-    my $code = shift;
-    return $self->SUPER::filter($self->_create_query($code, @_));
-}
-
-=method sort_by
-
 =method order_by
 
     \&iterator = $iterator->sort_by($field, %options);
@@ -234,14 +196,10 @@ subroutine is called once for each item and should return a string value. Option
 
 C<sort_by> and C<order_by> are aliases.
 
-B<NOTE:> This method drains the iterator completely but adds items back onto the buffer, so the iterator is
-still usable afterward. Nevertheless, you mustn't call this on an infinite iterator or it will run until
-available memory is depleted.
+B<NOTE:> This method drains the iterator completely and places the sorted items onto the buffer. See
+L</CAVEATS>.
 
 =cut
-
-sub sort_by  { shift->order_by(@_)  }
-sub nsort_by { shift->norder_by(@_) }
 
 sub order_by {
     my $self    = shift;
@@ -283,7 +241,13 @@ sub order_by {
     return $self;
 }
 
-=method nsort_by
+=method sort_by
+
+Alias for L</order_by>.
+
+=cut
+
+sub sort_by { shift->order_by(@_)  }
 
 =method norder_by
 
@@ -291,17 +255,16 @@ sub order_by {
     \&iterator = $iterator->nsort_by(\&get_value, %options);
 
 Get a new iterator draining from an existing iterator but providing items sorted by an object field. Sorting
-is done numerically using C<< <=> >>. The C<\&get_value> subroutine is called once for each item and should
-return a numerical value. Options:
+is done numerically using C<< <=> >>. The C<\&get_value> subroutine or C<$field> accessor is called once for
+each item and should return a numerical value. Options:
 
 =for :list
 * C<ascending> - Order ascending if true, descending otherwise (default: true)
 
 C<nsort_by> and C<norder_by> are aliases.
 
-B<NOTE:> This method drains the iterator completely but adds items back onto the buffer, so the iterator is
-still usable afterward. Nevertheless, you mustn't call this on an infinite iterator or it will run until
-available memory is depleted.
+B<NOTE:> This method drains the iterator completely and places the sorted items onto the buffer. See
+L</CAVEATS>.
 
 =cut
 
@@ -326,14 +289,33 @@ sub norder_by {
     return $self;
 }
 
+=method nsort_by
+
+Alias for L</norder_by>.
+
+=cut
+
+sub nsort_by { shift->norder_by(@_) }
+
+=method limit
+
+    \&iterator = $iterator->limit($count);
+
+Get a new iterator draining from an existing iterator but providing only a limited number of items.
+
+C<limit> as an alias for L<Iterator::Simple/"$iterator->head($count)">.
+
+=cut
+
+sub limit { shift->head(@_) }
+
 =method to_array
 
     \@array = $iterator->to_array;
 
 Get the rest of the items from an iterator as an arrayref.
 
-B<NOTE:> This method drains the iterator completely, leaving the iterator empty. You mustn't call this on an
-infinite iterator or it will run until available memory is depleted.
+B<NOTE:> This method drains the iterator completely, leaving it empty. See L</CAVEATS>.
 
 =cut
 
@@ -347,19 +329,15 @@ sub to_array {
 
 =method count
 
-=method size
-
     $size = $iterator->count;
 
 Count the rest of the items from an iterator.
 
-B<NOTE:> This method drains the iterator completely but adds items back onto the buffer, so the iterator is
-still usable afterward. Nevertheless, you mustn't call this on an infinite iterator or it will run until
-available memory is depleted.
+B<NOTE:> This method drains the iterator completely but restores it to its pre-drained state. See L</CAVEATS>.
 
 =cut
 
-sub size {
+sub count {
     my $self = shift;
 
     my $items = $self->to_array;
@@ -367,7 +345,15 @@ sub size {
     return scalar @$items;
 }
 
-sub count { shift->size }
+=method size
+
+Alias for L</count>.
+
+=cut
+
+sub size { shift->count }
+
+##############################################################################
 
 sub TO_JSON { $_[0]->to_array }
 
@@ -378,9 +364,11 @@ __END__
 
 =head1 SYNOPSIS
 
+    my $kdbx = File::KDBX->load('database.kdbx', 'masterpw');
+
     $kdbx->entries
-        ->grep(sub { $_->title =~ /bank/i })
-        ->sort_by('title')
+        ->where(sub { $_->title =~ /bank/i })
+        ->order_by('title')
         ->limit(5)
         ->each(sub {
             say $_->title;
@@ -389,7 +377,8 @@ __END__
 =head1 DESCRIPTION
 
 A buffered iterator compatible with and expanding upon L<Iterator::Simple>, this provides an easy way to
-navigate a L<File::KDBX> database.
+navigate a L<File::KDBX> database. The documentation for B<Iterator::Simple> documents functions and methods
+supported but this iterator that are not documented here, so consider that additional reading.
 
 =head2 Buffer
 
@@ -401,5 +390,13 @@ The way this works is that if you call an iterator without arguments, it acts li
 call it with arguments, however, the arguments are added to the buffer. When called without arguments, the
 buffer is drained before the iterator function is. Using L</unget> is equivalent to calling the iterator with
 arguments, and as L</next> is equivalent to calling the iterator without arguments.
+
+=head1 CAVEATS
+
+Some methods attempt to drain the iterator completely before returning. For obvious reasons, this won't work
+for infinite iterators because your computer doesn't have infinite memory. This isn't a practical issue with
+B<File::KDBX> lists which are always finite -- unless you do something weird like force a child group to be
+its own ancestor -- but I'm noting it here as a potential issue if you use this iterator class for other
+things (which you probably shouldn't do).
 
 =cut

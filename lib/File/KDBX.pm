@@ -590,7 +590,7 @@ sub last_top_visible {
 
 =method add_group
 
-    $kdbx->add_group($group, %options);
+    $kdbx->add_group($group);
     $kdbx->add_group(%group_attributes, %options);
 
 Add a group to a database. This is equivalent to identifying a parent group and calling
@@ -1104,9 +1104,9 @@ our %PLACEHOLDERS = (
     'OPERA'             => sub { load_optional('IPC::Cmd'); IPC::Cmd::can_run('opera') },
     'SAFARI'            => sub { load_optional('IPC::Cmd'); IPC::Cmd::can_run('safari') },
     'APPDIR'            => sub { load_optional('FindBin'); $FindBin::Bin },
-    'GROUP'             => sub { my $p = $_[0]->parent; $p ? $p->name : undef },
+    'GROUP'             => sub { my $p = $_[0]->group; $p ? $p->name : undef },
     'GROUP_PATH'        => sub { $_[0]->path },
-    'GROUP_NOTES'       => sub { my $p = $_[0]->parent; $p ? $p->notes : undef },
+    'GROUP_NOTES'       => sub { my $p = $_[0]->group; $p ? $p->notes : undef },
     # 'GROUP_SEL'
     # 'GROUP_SEL_PATH'
     # 'GROUP_SEL_NOTES'
@@ -1865,7 +1865,7 @@ See L</QUERY> for many more query examples.
 
     my $entries = $kdbx->entries(auto_type => 1)
         ->filter(sub {
-            my $ata = $_->auto_type_associations->grep(sub { $_->{window} =~ $window_title })->next;
+            my ($ata) = grep { $_->{window} =~ /\Q$window_title\E/i } @{$_->auto_type_associations};
             return [$_, $ata->{keystroke_sequence}] if $ata;
         })
         ->each(sub {
@@ -1980,11 +1980,14 @@ unfortunately not portable.
 
 =head1 QUERY
 
-B<TODO> - All these examples are WRONG now.
+To find things in a KDBX database, you should use a filtered iterator. If you have an iterator, such as
+returned by L</entries>, L</groups> or even L</objects> you can filter it using L<File::KDBX::Iterator/where>.
 
-Several methods take a I<query> as an argument (e.g. L</find_entries>). A query is just a subroutine that you
-can either write yourself or have generated for you based on either a simple expression or a declarative
-structure. It's easier to have your query generated, so I'll cover that first.
+    my $filtered_results = $kdbx->entries->where($query);
+
+A C<$query> is just a subroutine that you can either write yourself or have generated for you from either
+a L</"Simple Expression"> or L</"Declarative Syntax">. It's easier to have your query generated, so I'll cover
+that first.
 
 =head2 Simple Expression
 
@@ -1997,55 +2000,56 @@ one of the given fields.
 
 So a simple expression is something like what you might type into a search engine. You can generate a simple
 expression query using L<File::KDBX::Util/simple_expression_query> or by passing the simple expression as
-a B<string reference> to search methods like L</find_entries>.
+a B<scalar reference> to C<where>.
 
 To search for all entries in a database with the word "canyon" appearing anywhere in the title:
 
-    my @entries = $kdbx->find_entries([ \'canyon', qw(title) ]);
+    my $entries = $kdbx->entries->where(\'canyon', qw[title]);
 
-Notice the first argument is a B<stringref>. This diambiguates a simple expression from other types of queries
+Notice the first argument is a B<scalarref>. This diambiguates a simple expression from other types of queries
 covered below.
 
 As mentioned, a simple expression can have multiple terms. This simple expression query matches any entry that
 has the words "red" B<and> "canyon" anywhere in the title:
 
-    my @entries = $kdbx->find_entries([ \'red canyon', qw(title) ]);
+    my $entries = $kdbx->entries->where(\'red canyon', qw[title]);
 
 Each term in the simple expression must be found for an entry to match.
 
 To search for entries with "red" in the title but B<not> "canyon", just prepend "canyon" with a minus sign:
 
-    my @entries = $kdbx->find_entries([ \'red -canyon', qw(title) ]);
+    my $entries = $kdbx->entries->where(\'red -canyon', qw[title]);
 
 To search over multiple fields simultaneously, just list them. To search for entries with "grocery" in the
 title or notes but not "Foodland":
 
-    my @entries = $kdbx->find_entries([ \'grocery -Foodland', qw(title notes) ]);
+    my $entries = $kdbx->entries->where(\'grocery -Foodland', qw[title notes]);
 
 The default operator is a case-insensitive regexp match, which is fine for searching text loosely. You can use
 just about any binary comparison operator that perl supports. To specify an operator, list it after the simple
 expression. For example, to search for any entry that has been used at least five times:
 
-    my @entries = $kdbx->find_entries([ \5, '>=', qw(usage_count) ]);
+    my $entries = $kdbx->entries->where(\5, '>=', qw[usage_count]);
 
 It helps to read it right-to-left, like "usage_count is >= 5".
 
-If you find the disambiguating structures to be confusing, you can also the L</find_entries_simple> method as
-a more intuitive alternative. The following example is equivalent to the previous:
+If you find the disambiguating structures to be distracting or confusing, you can also the
+L<File::KDBX::Util/simple_expression_query> function as a more intuitive alternative. The following example is
+equivalent to the previous:
 
-    my @entries = $kdbx->find_entries_simple(5, '>=', qw(usage_count));
+    my $entries = $kdbx->entries->where(simple_expression_query(5, '>=', qw[usage_count]));
 
-=head2 Declarative Query
+=head2 Declarative Syntax
 
 Structuring a declarative query is similar to L<SQL::Abstract/"WHERE CLAUSES">, but you don't have to be
 familiar with that module. Just learn by examples.
 
 To search for all entries in a database titled "My Bank":
 
-    my @entries = $kdbx->find_entries({ title => 'My Bank' });
+    my $entries = $kdbx->entries->where({ title => 'My Bank' });
 
-The query here is C<< { title => 'My Bank' } >>. A hashref can contain key-value pairs where the key is
-a attribute of the thing being searched for (in this case an entry) and the value is what you want the thing's
+The query here is C<< { title => 'My Bank' } >>. A hashref can contain key-value pairs where the key is an
+attribute of the thing being searched for (in this case an entry) and the value is what you want the thing's
 attribute to be to consider it a match. In this case, the attribute we're using as our match criteria is
 L<File::KDBX::Entry/title>, a text field. If an entry has its title attribute equal to "My Bank", it's
 a match.
@@ -2054,33 +2058,35 @@ A hashref can contain multiple attributes. The search candidate will be a match 
 attributes are equal to their respective values. For example, to search for all entries with a particular URL
 B<AND> username:
 
-    my @entries = $kdbx->find_entries({
+    my $entries = $kdbx->entries->where({
         url      => 'https://example.com',
         username => 'neo',
     });
 
 To search for entries matching I<any> criteria, just change the hashref to an arrayref. To search for entries
-with a particular URL B<OR> a particular username:
+with a particular URL B<OR> username:
 
-    my @entries = $kdbx->find_entries([ # <-- square bracket
+    my $entries = $kdbx->entries->where([ # <-- Notice the square bracket
         url      => 'https://example.com',
         username => 'neo',
     ]);
 
-You can user different operators to test different types of attributes. The L<File::KDBX::Entry/icon_id>
+
+
+You can use different operators to test different types of attributes. The L<File::KDBX::Entry/icon_id>
 attribute is a number, so we should use a number comparison operator. To find entries using the smartphone
 icon:
 
-    my @entries = $kdbx->find_entries({
+    my $entries = $kdbx->entries->where({
         icon_id => { '==', ICON_SMARTPHONE },
     });
 
 Note: L<File::KDBX::Constants/ICON_SMARTPHONE> is just a constant from L<File::KDBX::Constants>. It isn't
 special to this example or to queries generally. We could have just used a literal number.
 
-The important thing to notice here is how we wrapped the condition in another arrayref with a single key-pair
-where the key is the name of an operator and the value is the thing to match against. The supported operators
-are:
+The important thing to notice here is how we wrapped the condition in another arrayref with a single key-value
+pair where the key is the name of an operator and the value is the thing to match against. The supported
+operators are:
 
 =for :list
 * C<eq> - String equal
@@ -2107,7 +2113,7 @@ Other special operators:
 * C<-false> - Boolean false
 * C<-not> - Boolean false (alias for C<-false>)
 * C<-defined> - Is defined
-* C<-undef> - Is not d efined
+* C<-undef> - Is not defined
 * C<-empty> - Is empty
 * C<-nonempty> - Is not empty
 * C<-or> - Logical or
@@ -2116,42 +2122,46 @@ Other special operators:
 Let's see another example using an explicit operator. To find all groups except one in particular (identified
 by its L<File::KDBX::Group/uuid>), we can use the C<ne> (string not equal) operator:
 
-    my ($group, @other) = $kdbx->find_groups({
+    my $groups = $kdbx->groups->where(
         uuid => {
             'ne' => uuid('596f7520-6172-6520-7370-656369616c2e'),
         },
-    });
-    if (@other) { say "Problem: there can be only one!" }
+    );
+    if (1 < $groups->count) { say "Problem: there can be only one!" }
 
-Note: L<File::KDBX::Util/uuid> is a little helper function to convert a UUID in its pretty form into octets.
+Note: L<File::KDBX::Util/uuid> is a little helper function to convert a UUID in its pretty form into bytes.
 This helper function isn't special to this example or to queries generally. It could have been written with
 a literal such as C<"\x59\x6f\x75\x20\x61...">, but that's harder to read.
 
 Notice we searched for groups this time. Finding groups works exactly the same as it does for entries.
 
+Notice also that we didn't wrap the query in hashref curly-braces or arrayref square-braces. Those are
+optional. By default it will only match ALL attributes (as if there were curly-braces), but it doesn't matter
+if there is only one attribute so it's fine to rely on the implicit behavior.
+
 Testing the truthiness of an attribute is a little bit different because it isn't a binary operation. To find
 all entries with the password quality check disabled:
 
-    my @entries = $kdbx->find_entries({ '!' => 'quality_check' });
+    my $entries = $kdbx->entries->where('!' => 'quality_check');
 
 This time the string after the operator is the attribute name rather than a value to compare the attribute
 against. To test that a boolean value is true, use the C<!!> operator (or C<-true> if C<!!> seems a little too
 weird for your taste):
 
-    my @entries = $kdbx->find_entries({ '!!'  => 'quality_check' });
-    my @entries = $kdbx->find_entries({ -true => 'quality_check' });
+    my $entries = $kdbx->entries->where('!!'  => 'quality_check');
+    my $entries = $kdbx->entries->where(-true => 'quality_check');
 
 Yes, there is also a C<-false> and a C<-not> if you prefer one of those over C<!>. C<-false> and C<-not>
 (along with C<-true>) are also special in that you can use them to invert the logic of a subquery. These are
 logically equivalent:
 
-    my @entries = $kdbx->find_entries([ -not => { title => 'My Bank' } ]);
-    my @entries = $kdbx->find_entries({ title => { 'ne' => 'My Bank' } });
+    my $entries = $kdbx->entries->where(-not => { title => 'My Bank' });
+    my $entries = $kdbx->entries->where(title => { 'ne' => 'My Bank' });
 
 These special operators become more useful when combined with two more special operators: C<-and> and C<-or>.
 With these, it is possible to construct more interesting queries with groups of logic. For example:
 
-    my @entries = $kdbx->find_entries({
+    my $entries = $kdbx->entries->where({
         title   => { '=~', qr/bank/ },
         -not    => {
             -or     => {
@@ -2162,22 +2172,20 @@ With these, it is possible to construct more interesting queries with groups of 
     });
 
 In English, find entries where the word "bank" appears anywhere in the title but also do not have either the
-word "business" in the notes or is using the full trashcan icon.
+word "business" in the notes or are using the full trashcan icon.
 
 =head2 Subroutine Query
 
 Lastly, as mentioned at the top, you can ignore all this and write your own subroutine. Your subroutine will
-be called once for each thing being searched over. The single argument is the search candidate. The subroutine
-should match the candidate against whatever criteria you want and return true if it matches. The C<find_*>
-methods collect all matching things and return them.
+be called once for each object being searched over. The subroutine should match the candidate against whatever
+criteria you want and return true if it matches or false to skip. To do this, just pass your subroutine
+coderef to C<where>.
 
-For example, to find all entries in the database titled "My Bank":
+For example, these are all equivalent to find all entries in the database titled "My Bank":
 
-    my @entries = $kdbx->find_entries(sub { shift->title eq 'My Bank' });
-    # logically the same as this declarative structure:
-    my @entries = $kdbx->find_entries({ title => 'My Bank' });
-    # as well as this simple expression:
-    my @entries = $kdbx->find_entries([ \'My Bank', 'eq', qw{title} ]);
+    my $entries = $kdbx->entries->where(\'"My Bank"', 'eq', qw[title]);     # simple expression
+    my $entries = $kdbx->entries->where(title => 'My Bank');                # declarative syntax
+    my $entries = $kdbx->entries->where(sub { $_->title eq 'My Bank' });    # subroutine query
 
 This is a trivial example, but of course your subroutine can be arbitrarily complex.
 

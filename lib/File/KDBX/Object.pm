@@ -131,11 +131,11 @@ sub label { die 'Not implemented' }
 
 =method clone
 
-    $object_copy = $object->clone;
+    $object_copy = $object->clone(%options);
     $object_copy = File::KDBX::Object->new($object);
 
 Make a clone of an object. By default the clone is indeed an exact copy that is connected to the same database
-but not actually included in the object tree (i.e. it has no parent). Some options are allowed to get
+but not actually included in the object tree (i.e. it has no parent group). Some options are allowed to get
 different effects:
 
 =for :list
@@ -170,7 +170,7 @@ sub clone {
     if ($args{relabel} and my $label = $self->label) {
         $copy->label("$label - Copy");
     }
-    if ($args{parent} and my $parent = $self->parent) {
+    if ($args{parent} and my $parent = $self->group) {
         $parent->add_object($copy);
     }
 
@@ -286,13 +286,8 @@ sub id { format_uuid(shift->uuid, @_) }
 
 =method group
 
-=method parent
-
-    $group = $object->group;
-    # OR equivalently
-    $group = $object->parent;
-
-    $object->group($new_parent);
+    $parent_group = $object->group;
+    $object->group($parent_group);
 
 Get or set the parent group to which an object belongs or C<undef> if it belongs to no group.
 
@@ -321,8 +316,6 @@ sub group {
     $PARENT{$self} = $group; weaken $PARENT{$self};
     return $group;
 }
-
-sub parent { shift->group(@_) }
 
 sub _set_group {
     my $self = shift;
@@ -358,10 +351,10 @@ sub lineage {
 
     # try leaf to root
     my @path;
-    my $o = $self;
-    while ($o = $o->parent) {
-        unshift @path, $o;
-        last if $base_addr == Hash::Util::FieldHash::id($o);
+    my $object = $self;
+    while ($object = $object->group) {
+        unshift @path, $object;
+        last if $base_addr == Hash::Util::FieldHash::id($object);
     }
     return \@path if @path && ($base_addr == Hash::Util::FieldHash::id($path[0]) || $path[0]->is_root);
 
@@ -383,7 +376,7 @@ are removed as well. Options:
 
 sub remove {
     my $self = shift;
-    my $parent = $self->parent;
+    my $parent = $self->group;
     $parent->remove_object($self, @_) if $parent;
     $self->_set_group(undef);
     return $self;
@@ -399,7 +392,7 @@ Remove an object from its parent and add it to the connected database's recycle 
 
 sub recycle {
     my $self = shift;
-    return $self->parent($self->kdbx->recycle_bin);
+    return $self->group($self->kdbx->recycle_bin);
 }
 
 =method recycle_or_remove
@@ -433,7 +426,7 @@ Get whether or not an object is in a recycle bin.
 sub is_recycled {
     my $self = shift;
     eval { $self->kdbx } or return FALSE;
-    return !!($self->parent && any { $_->is_recycle_bin } @{$self->lineage});
+    return !!($self->group && any { $_->is_recycle_bin } @{$self->lineage});
 }
 
 ##############################################################################
@@ -817,7 +810,7 @@ one of:
 * L<File::KDBX::Entry/add_historical_entry>
 
 It is possible to copy or move objects between databases, but B<DO NOT> include the same object in more
-than one database at once or there could some strange aliasing effects (i.e. changes in one database might
+than one database at once or there could be some strange aliasing effects (i.e. changes in one database might
 effect another in unexpected ways). This could lead to difficult-to-debug problems. It is similarly not safe
 or valid to add the same object multiple times to the same database. For example:
 
@@ -838,6 +831,6 @@ Instead, do this:
     $another_kdbx->add_entry($entry->clone);
 
     # OR move an existing entry from one database to another:
-    $kdbx->add_entry($entry->remove);
+    $another_kdbx->add_entry($entry->remove);
 
 =cut

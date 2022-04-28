@@ -447,7 +447,7 @@ sub effective_default_auto_type_sequence {
     my $sequence = $self->default_auto_type_sequence;
     return $sequence if defined $sequence;
 
-    my $parent = $self->parent or return '{USERNAME}{TAB}{PASSWORD}{ENTER}';
+    my $parent = $self->group or return '{USERNAME}{TAB}{PASSWORD}{ENTER}';
     return $parent->effective_default_auto_type_sequence;
 }
 
@@ -456,7 +456,7 @@ sub effective_enable_auto_type {
     my $enabled = $self->enable_auto_type;
     return $enabled if defined $enabled;
 
-    my $parent = $self->parent or return true;
+    my $parent = $self->group or return true;
     return $parent->effective_enable_auto_type;
 }
 
@@ -465,7 +465,7 @@ sub effective_enable_searching {
     my $enabled = $self->enable_searching;
     return $enabled if defined $enabled;
 
-    my $parent = $self->parent or return true;
+    my $parent = $self->group or return true;
     return $parent->effective_enable_searching;
 }
 

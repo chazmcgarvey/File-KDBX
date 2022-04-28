@@ -33,7 +33,7 @@ our %EXPORT_TAGS = (
     gzip        => [qw(gzip gunzip)],
     io          => [qw(is_readable is_writable read_all)],
     load        => [qw(load_optional load_xs try_load_optional)],
-    search      => [qw(query search simple_expression_query)],
+    search      => [qw(query query_any search simple_expression_query)],
     text        => [qw(snakify trim)],
     uuid        => [qw(format_uuid generate_uuid is_uuid uuid UUID_NULL)],
     uri         => [qw(split_url uri_escape_utf8 uri_unescape_utf8)],
@@ -442,11 +442,13 @@ sub has {
 
     my $store = $args{store};
     ($store, $name) = split(/\./, $name, 2) if $name =~ /\./;
-    push @{$ATTRIBUTES{$package} //= []}, $name;
 
-    my $store_code = '';
-    $store_code = qq{->$store} if $store;
-    my $member = qq{\$_[0]$store_code\->{'$name'}};
+    my @path = split(/\./, $args{path} || '');
+    my $last = pop @path;
+    my $path = $last ? join('', map { qq{->$_} } @path) . qq{->{'$last'}}
+                     : $store ? qq{->$store\->{'$name'}} : qq{->{'$name'}};
+    my $member = qq{\$_[0]$path};
+
 
     my $default_code = is_coderef $default ? q{scalar $default->($_[0])}
                         : defined $default ? q{$default}
@@ -460,6 +462,7 @@ sub has {
                                   : qq{$member = \$_[1] if \$#_;};
     }
 
+    push @{$ATTRIBUTES{$package} //= []}, $name;
     $line -= 4;
     my $code = <<END;
 # line $line "$file"
@@ -684,6 +687,26 @@ See L<File::KDBX/QUERY> for examples.
 
 sub query { _query(undef, '-or', \@_) }
 
+=func query_any
+
+Get either a L</query> or L</simple_expression_query>, depending on the arguments.
+
+=cut
+
+sub query_any {
+    my $code = shift;
+
+    if (is_coderef($code) || overload::Method($code, '&{}')) {
+        return $code;
+    }
+    elsif (is_scalarref($code)) {
+        return simple_expression_query($$code, @_);
+    }
+    else {
+        return query($code, @_);
+    }
+}
+
 =func read_all
 
     $size = read_all($fh, my $buffer, $size);
@@ -739,23 +762,11 @@ sub recurse_limit {
 
 Execute a linear search over an array of records using a L</query>. A "record" is usually a hash.
 
-This is the search engine described with many examples at L<File::KDBX/QUERY>.
-
 =cut
 
 sub search {
     my $list    = shift;
-    my $query   = shift;
-
-    if (is_coderef($query) && !@_) {
-        # already a query
-    }
-    elsif (is_scalarref($query)) {
-        $query = simple_expression_query($$query, @_);
-    }
-    else {
-        $query = query($query, @_);
-    }
+    my $query   = query_any(@_);
 
     my @match;
     for my $item (@$list) {

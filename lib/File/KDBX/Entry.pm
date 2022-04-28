@@ -9,10 +9,10 @@ use Devel::GlobalDestruction;
 use Encode qw(encode);
 use File::KDBX::Constants qw(:history :icon);
 use File::KDBX::Error;
-use File::KDBX::Util qw(:class :coercion :function :uri generate_uuid load_optional);
+use File::KDBX::Util qw(:class :coercion :erase :function :uri generate_uuid load_optional);
 use Hash::Util::FieldHash;
 use List::Util qw(first sum0);
-use Ref::Util qw(is_coderef is_plain_hashref);
+use Ref::Util qw(is_coderef is_hashref is_plain_hashref);
 use Scalar::Util qw(looks_like_number);
 use Storable qw(dclone);
 use Time::Piece;
@@ -72,6 +72,22 @@ Auto-type details.
             },
         ],
     }
+
+=attr auto_type_enabled
+
+Whether or not the entry is eligible to be matched for auto-typing.
+
+=attr auto_type_data_transfer_obfuscation
+
+TODO
+
+=attr auto_type_default_sequence
+
+The default auto-type keystroke sequence.
+
+=attr auto_type_associations
+
+An array of window title / keystroke sequence associations.
 
 =attr previous_parent_group
 
@@ -199,6 +215,13 @@ has expires                 => false,          store => 'times', coerce => \&to_
 has usage_count             => 0,              store => 'times', coerce => \&to_number;
 has location_changed        => sub { gmtime }, store => 'times', coerce => \&to_time;
 
+# has 'auto_type.auto_type_enabled'                   => true, coerce => \&to_bool;
+has 'auto_type_data_transfer_obfuscation' => 0, path => 'auto_type.data_transfer_obfuscation',
+    coerce => \&to_number;
+has 'auto_type_default_sequence'          => '{USERNAME}{TAB}{PASSWORD}{ENTER}',
+    path => 'auto_type.default_sequence', coerce => \&to_string;
+has 'auto_type_associations'              => [], path => 'auto_type.associations';
+
 my %ATTRS_STRINGS = (
     title                   => 'Title',
     username                => 'UserName',
@@ -212,7 +235,7 @@ while (my ($attr, $string_key) = each %ATTRS_STRINGS) {
     *{"expanded_${attr}"} = sub { shift->expanded_string_value($string_key, @_) };
 }
 
-my @ATTRS = qw(uuid custom_data history);
+my @ATTRS = qw(uuid custom_data history auto_type_enabled);
 sub _set_nonlazy_attributes {
     my $self = shift;
     $self->$_ for @ATTRS, keys %ATTRS_STRINGS, list_attributes(ref $self);
@@ -303,9 +326,15 @@ sub _protect {
 
 =method string_value
 
-    $string = $entry->string_value;
+    $string = $entry->string_value($string_key);
 
-Access a string value directly. Returns C<undef> if the string is not set.
+Access a string value directly. The arguments are the same as for L</string>. Returns C<undef> if the string
+is not set or is currently memory-protected. This is just a shortcut for:
+
+    my $string = do {
+        my $s = $entry->string(...);
+        defined $s ? $s->{value} : undef;
+    };
 
 =cut
 
@@ -374,7 +403,8 @@ sub _expand_string {
 
 sub expanded_string_value {
     my $self = shift;
-    my $str  = $self->string_value(@_) // return undef;
+    my $str  = $self->string_peek(@_) // return undef;
+    my $cleanup = erase_scoped $str;
     return $self->_expand_string($str);
 }
 
@@ -396,13 +426,42 @@ sub other_strings {
     return join($delim, @strings);
 }
 
+=method string_peek
+
+    $string = $entry->string_peek($string_key);
+
+Same as L</string_value> but can also retrieve the value from protected-memory if the value is currently
+protected.
+
+=cut
+
 sub string_peek {
     my $self = shift;
     my $string = $self->string(@_);
     return defined $string->{value} ? $string->{value} : $self->kdbx->peek($string);
 }
 
-sub password_peek { $_[0]->string_peek('Password') }
+##############################################################################
+
+sub add_auto_type_association {
+    my $self        = shift;
+    my $association = shift;
+    push @{$self->auto_type_associations}, $association;
+}
+
+sub expand_keystroke_sequence {
+    my $self = shift;
+    my $association = shift;
+
+    my $keys = is_hashref($association) && exists $association->{keystroke_sequence} ?
+        $association->{keystroke_sequence} : defined $association ? $association : '';
+
+    $keys = $self->auto_type_default_sequence if !$keys;
+    # TODO - Fall back to getting default sequence from parent group, which probably means we shouldn't be
+    # setting a default value in the entry..
+
+    return $self->_expand_string($keys);
+}
 
 ##############################################################################
 
@@ -440,15 +499,18 @@ sub binary_value {
 
 sub searching_enabled {
     my $self = shift;
-    my $parent = $self->parent;
+    my $parent = $self->group;
     return $parent->effective_enable_searching if $parent;
     return true;
 }
 
 sub auto_type_enabled {
     my $self = shift;
+    $self->auto_type->{enabled} = to_bool(shift) if @_;
+    $self->auto_type->{enabled} //= true;
     return false if !$self->auto_type->{enabled};
-    my $parent = $self->parent;
+    return true if !$self->is_connected;
+    my $parent = $self->group;
     return $parent->effective_enable_auto_type if $parent;
     return true;
 }
@@ -811,7 +873,7 @@ Get an entry's current entry. If the entry itself is current (not historical), i
 
 sub current_entry {
     my $self    = shift;
-    my $group   = $self->parent;
+    my $group   = $self->group;
 
     if ($group) {
         my $id = $self->uuid;
