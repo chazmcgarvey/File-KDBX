@@ -465,37 +465,75 @@ sub expand_keystroke_sequence {
 
 ##############################################################################
 
+=method binary
+
+    \%binary = $entry->binary($binary_key);
+
+    $entry->binary($binary_key, \%binary);
+    $entry->binary($binary_key, %attributes);
+    $entry->binary($binary_key, $value); # same as: value => $value
+
+Get or set a binary. Every binary has a unique (to the entry) key and flags and so are returned as a hash
+structure. For example:
+
+    $binary = {
+        value   => 'Password',
+        protect => true,    # optional
+    };
+
+Every binary should have a value (but might be C<undef> due to memory protection) and these optional flags
+which might exist:
+
+=for :list
+* C<protect> - Whether or not the binary value should be memory-protected.
+
+=cut
+
 sub binary {
     my $self = shift;
-    my $key  = shift or throw 'Must provide a binary key to access';
-    if (@_) {
-        my $arg = @_ == 1 ? shift : undef;
-        my %args;
-        @args{keys %$arg} = values %$arg if ref $arg eq 'HASH';
-        $args{value} = $arg if !ref $arg;
-        while (my ($field, $value) = each %args) {
-            $self->{binaries}{$key}{$field} = $value;
+    my %args = @_     == 2 ? (key => shift, value => shift)
+             : @_ % 2 == 1 ? (key => shift, @_) : @_;
+
+    if (!defined $args{key} && !defined $args{value}) {
+        my %standard = (value => 1, protect => 1);
+        my @other_keys = grep { !$standard{$_} } keys %args;
+        if (@other_keys == 1) {
+            my $key = $args{key} = $other_keys[0];
+            $args{value} = delete $args{$key};
         }
     }
-    my $binary = $self->{binaries}{$key} //= {value => ''};
-    if (defined (my $ref = $binary->{ref})) {
-        $binary = $self->{binaries}{$key} = dclone($self->kdbx->binaries->{$ref});
+
+    my $key = delete $args{key} or throw 'Must provide a binary key to access';
+
+    return $self->{binaries}{$key} = $args{value} if is_plain_hashref($args{value});
+
+    while (my ($field, $value) = each %args) {
+        $self->{binaries}{$key}{$field} = $value;
     }
-    return $binary;
+    return $self->{binaries}{$key};
 }
 
-sub binary_novivify {
-    my $self = shift;
-    my $binary_key = shift;
-    return if !$self->{binaries}{$binary_key} && !@_;
-    return $self->binary($binary_key, @_);
-}
+=method binary_value
+
+    $binary = $entry->binary_value($binary_key);
+
+Access a binary value directly. The arguments are the same as for L</binary>. Returns C<undef> if the binary
+is not set or is currently memory-protected. This is just a shortcut for:
+
+    my $binary = do {
+        my $b = $entry->binary(...);
+        defined $b ? $b->{value} : undef;
+    };
+
+=cut
 
 sub binary_value {
     my $self = shift;
-    my $binary = $self->binary_novivify(@_) // return undef;
+    my $binary = $self->binary(@_) // return undef;
     return $binary->{value};
 }
+
+##############################################################################
 
 sub searching_enabled {
     my $self = shift;
