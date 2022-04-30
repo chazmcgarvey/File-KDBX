@@ -5,7 +5,7 @@ use warnings;
 use strict;
 
 use Devel::GlobalDestruction;
-use File::KDBX::Constants qw(:bool :icon);
+use File::KDBX::Constants qw(:bool :icon :iteration);
 use File::KDBX::Error;
 use File::KDBX::Iterator;
 use File::KDBX::Util qw(:assert :class :coercion generate_uuid);
@@ -21,7 +21,96 @@ extends 'File::KDBX::Object';
 
 our $VERSION = '999.999'; # VERSION
 
-sub _parent_container { 'groups' }
+=attr uuid
+
+128-bit UUID identifying the group within the database.
+
+=attr name
+
+The human-readable name of the group.
+
+=attr notes
+
+Free form text string associated with the group.
+
+=attr tags
+
+Text string with arbitrary tags which can be used to build a taxonomy.
+
+=attr icon_id
+
+Integer representing a default icon. See L<File::KDBX::Constants/":icon"> for valid values.
+
+=attr custom_icon_uuid
+
+128-bit UUID identifying a custom icon within the database.
+
+=attr is_expanded
+
+Whether or not subgroups are visible when listed for user selection.
+
+=attr default_auto_type_sequence
+
+The default auto-type keystroke sequence, inheritable by entries and subgroups.
+
+=attr enable_auto_type
+
+Whether or not the entry is eligible to be matched for auto-typing, inheritable by entries and subgroups.
+
+=attr enable_searching
+
+Whether or not entries within the group can show up in search results, inheritable by subgroups.
+
+=attr last_top_visible_entry
+
+The UUID of the entry visible at the top of the list.
+
+=attr custom_data
+
+A set of key-value pairs used to store arbitrary data, usually used by software to keep track of state rather
+than by end users (who typically work with the strings and binaries).
+
+=attr previous_parent_group
+
+128-bit UUID identifying a group within the database.
+
+=attr entries
+
+Array of entries contained within the group.
+
+=attr groups
+
+Array of subgroups contained within the group.
+
+=attr last_modification_time
+
+Date and time when the entry was last modified.
+
+=attr creation_time
+
+Date and time when the entry was created.
+
+=attr last_access_time
+
+Date and time when the entry was last accessed.
+
+=attr expiry_time
+
+Date and time when the entry expired or will expire.
+
+=attr expires
+
+Boolean value indicating whether or not an entry is expired.
+
+=attr usage_count
+
+TODO
+
+=attr location_changed
+
+Date and time when the entry was last moved to a different parent group.
+
+=cut
 
 # has uuid                        => sub { generate_uuid(printable => 1) };
 has name                        => '',          coerce => \&to_string;
@@ -67,6 +156,14 @@ sub uuid {
 
 ##############################################################################
 
+=method entries
+
+    \@entries = $group->entries;
+
+Get an array of direct entries within a group.
+
+=cut
+
 sub entries {
     my $self = shift;
     my $entries = $self->{entries} //= [];
@@ -76,6 +173,20 @@ sub entries {
     assert { !any { !blessed $_ } @$entries };
     return $entries;
 }
+
+=method entries_deeply
+
+    \&iterator = $kdbx->entries_deeply(%options);
+
+Get an L<File::KDBX::Iterator> over I<entries> within a group. Supports the same options as L</groups>,
+plus some new ones:
+
+=for :list
+* C<auto_type> - Only include entries with auto-type enabled (default: false, include all)
+* C<searching> - Only include entries within groups with searching enabled (default: false, include all)
+* C<history> - Also include historical entries (default: false, include only current entries)
+
+=cut
 
 sub entries_deeply {
     my $self = shift;
@@ -128,6 +239,15 @@ sub add_entry {
     return $entry->_set_group($self)->_signal('added', $self);
 }
 
+=method remove_entry
+
+    $entry = $group->remove_entry($entry);
+    $entry = $group->remove_entry($entry_uuid);
+
+Remove an entry from a group's array of entries. Returns the entry removed or C<undef> if nothing removed.
+
+=cut
+
 sub remove_entry {
     my $self = shift;
     my $uuid = is_ref($_[0]) ? $self->_wrap_entry(shift)->uuid : shift;
@@ -144,6 +264,14 @@ sub remove_entry {
 
 ##############################################################################
 
+=method groups
+
+    \@groups = $group->groups;
+
+Get an array of direct subgroups within a group.
+
+=cut
+
 sub groups {
     my $self = shift;
     my $groups = $self->{groups} //= [];
@@ -154,6 +282,18 @@ sub groups {
     return $groups;
 }
 
+=method groups_deeply
+
+    \&iterator = $group->groups_deeply(%options);
+
+Get an L<File::KDBX::Iterator> over I<groups> within a groups, deeply. Options:
+
+=for :list
+* C<inclusive> - Include C<$group> itself in the results (default: true)
+* C<algorithm> - Search algorithm, one of C<ids>, C<bfs> or C<dfs> (default: C<ids>)
+
+=cut
+
 sub groups_deeply {
     my $self = shift;
     my %args = @_;
@@ -161,7 +301,7 @@ sub groups_deeply {
     my @groups = ($args{inclusive} // 1) ? $self : @{$self->groups};
     my $algo = lc($args{algorithm} || 'ids');
 
-    if ($algo eq 'dfs') {
+    if ($algo eq ITERATION_DFS) {
         my %visited;
         return File::KDBX::Iterator->new(sub {
             my $next = shift @groups or return;
@@ -175,7 +315,7 @@ sub groups_deeply {
             $next;
         });
     }
-    elsif ($algo eq 'bfs') {
+    elsif ($algo eq ITERATION_BFS) {
         return File::KDBX::Iterator->new(sub {
             my $next = shift @groups or return;
             push @groups, @{$next->groups};
@@ -216,6 +356,15 @@ sub add_group {
     return $group->_set_group($self)->_signal('added', $self);
 }
 
+=method remove_group
+
+    $removed_group = $group->remove_group($group);
+    $removed_group = $group->remove_group($group_uuid);
+
+Remove a group from a group's array of subgroups. Returns the group removed or C<undef> if nothing removed.
+
+=cut
+
 sub remove_group {
     my $self = shift;
     my $uuid = is_ref($_[0]) ? $self->_wrap_group(shift)->uuid : shift;
@@ -231,6 +380,16 @@ sub remove_group {
 }
 
 ##############################################################################
+
+=method objects_deeply
+
+    \&iterator = $groups->objects_deeply(%options);
+
+Get an L<File::KDBX::Iterator> over I<objects> within a group, deeply. Groups and entries are considered
+objects, so this is essentially a combination of L</groups> and L</entries>. This won't often be useful, but
+it can be convenient for maintenance tasks. This method takes the same options as L</groups> and L</entries>.
+
+=cut
 
 sub objects_deeply {
     my $self = shift;
@@ -300,6 +459,75 @@ sub remove_object {
 
 ##############################################################################
 
+=method effective_default_auto_type_sequence
+
+    $text = $group->effective_default_auto_type_sequence;
+
+Get the value of L</default_auto_type_sequence>, if set, or get the inherited effective default auto-type
+sequence of the parent.
+
+=cut
+
+sub effective_default_auto_type_sequence {
+    my $self = shift;
+    my $sequence = $self->default_auto_type_sequence;
+    return $sequence if defined $sequence;
+
+    my $parent = $self->group or return '{USERNAME}{TAB}{PASSWORD}{ENTER}';
+    return $parent->effective_default_auto_type_sequence;
+}
+
+=method effective_enable_auto_type
+
+    $text = $group->effective_enable_auto_type;
+
+Get the value of L</enable_auto_type>, if set, or get the inherited effective auto-type enabled value of the
+parent.
+
+=cut
+
+sub effective_enable_auto_type {
+    my $self = shift;
+    my $enabled = $self->enable_auto_type;
+    return $enabled if defined $enabled;
+
+    my $parent = $self->group or return true;
+    return $parent->effective_enable_auto_type;
+}
+
+=method effective_enable_searching
+
+    $text = $group->effective_enable_searching;
+
+Get the value of L</enable_searching>, if set, or get the inherited effective searching enabled value of the
+parent.
+
+=cut
+
+sub effective_enable_searching {
+    my $self = shift;
+    my $enabled = $self->enable_searching;
+    return $enabled if defined $enabled;
+
+    my $parent = $self->group or return true;
+    return $parent->effective_enable_searching;
+}
+
+##############################################################################
+
+=method is_empty
+
+    $bool = $group->is_empty;
+
+Get whether or not the group is empty (has no subgroups or entries).
+
+=cut
+
+sub is_empty {
+    my $self = shift;
+    return @{$self->groups} == 0 && @{$self->entries} == 0;
+}
+
 =method is_root
 
     $bool = $group->is_root;
@@ -337,7 +565,7 @@ Get whether or not a group is the group containing entry template of its connect
 
 =cut
 
-sub entry_templates {
+sub is_entry_templates {
     my $self    = shift;
     my $kdbx    = eval { $self->kdbx } or return FALSE;
     my $group   = $kdbx->entry_templates;
@@ -352,7 +580,7 @@ Get whether or not a group is the prior selected group of its connected database
 
 =cut
 
-sub last_selected {
+sub is_last_selected {
     my $self    = shift;
     my $kdbx    = eval { $self->kdbx } or return FALSE;
     my $group   = $kdbx->last_selected;
@@ -367,7 +595,7 @@ Get whether or not a group is the latest top visible group of its connected data
 
 =cut
 
-sub last_top_visible {
+sub is_last_top_visible {
     my $self    = shift;
     my $kdbx    = eval { $self->kdbx } or return FALSE;
     my $group   = $kdbx->last_top_visible;
@@ -427,8 +655,6 @@ etc. A group not in a database tree structure returns a depth of -1.
 
 sub depth { $_[0]->is_root ? 0 : (scalar @{$_[0]->lineage || []} || -1) }
 
-sub label { shift->name(@_) }
-
 sub _signal {
     my $self = shift;
     my $type = shift;
@@ -442,82 +668,22 @@ sub _commit {
     $self->last_access_time($time);
 }
 
-sub effective_default_auto_type_sequence {
-    my $self = shift;
-    my $sequence = $self->default_auto_type_sequence;
-    return $sequence if defined $sequence;
+sub label { shift->name(@_) }
 
-    my $parent = $self->group or return '{USERNAME}{TAB}{PASSWORD}{ENTER}';
-    return $parent->effective_default_auto_type_sequence;
-}
-
-sub effective_enable_auto_type {
-    my $self = shift;
-    my $enabled = $self->enable_auto_type;
-    return $enabled if defined $enabled;
-
-    my $parent = $self->group or return true;
-    return $parent->effective_enable_auto_type;
-}
-
-sub effective_enable_searching {
-    my $self = shift;
-    my $enabled = $self->enable_searching;
-    return $enabled if defined $enabled;
-
-    my $parent = $self->group or return true;
-    return $parent->effective_enable_searching;
-}
+### Name of the parent attribute expected to contain the object
+sub _parent_container { 'groups' }
 
 1;
 __END__
 
+=for Pod::Coverage times
+
 =head1 DESCRIPTION
 
-=attr uuid
+A group in a KDBX database is a type of object that can contain entries and other groups.
 
-=attr name
-
-=attr notes
-
-=attr tags
-
-=attr icon_id
-
-=attr custom_icon_uuid
-
-=attr is_expanded
-
-=attr default_auto_type_sequence
-
-=attr enable_auto_type
-
-=attr enable_searching
-
-=attr last_top_visible_entry
-
-=attr custom_data
-
-=attr previous_parent_group
-
-=attr entries
-
-=attr groups
-
-=attr last_modification_time
-
-=attr creation_time
-
-=attr last_access_time
-
-=attr expiry_time
-
-=attr expires
-
-=attr usage_count
-
-=attr location_changed
-
-Get or set various group fields.
+There is also some metadata associated with a group. Each group in a database is identified uniquely by
+a UUID. An entry can also have an icon associated with it, and there are various timestamps. Take a look at
+the attributes to see what's available.
 
 =cut

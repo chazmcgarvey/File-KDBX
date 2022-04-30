@@ -231,6 +231,10 @@ sub clone_nomagic {
     return $thing;
 }
 
+=func DEBUG
+
+Constant number indicating the level of debuggingness.
+
 =func dumper
 
     $str = dumper $thing;
@@ -901,7 +905,8 @@ sub to_number { $_[0] // return; 0+$_[0] }
 sub to_string { $_[0] // return; "$_[0]" }
 sub to_time   {
     $_[0] // return;
-    return gmtime($_[0]) if looks_like_number($_[0]);
+    return scalar gmtime($_[0]) if looks_like_number($_[0]);
+    return scalar gmtime if $_[0] eq 'now';
     return Time::Piece->strptime($_[0], '%Y-%m-%d %H:%M:%S') if !blessed $_[0];
     return $_[0];
 }

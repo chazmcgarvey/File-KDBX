@@ -301,6 +301,7 @@ sub group {
         return $new_group if Hash::Util::FieldHash::id($old_group) == Hash::Util::FieldHash::id($new_group);
         # move to a new parent
         $self->remove(signal => 0) if $old_group;
+        $self->location_changed('now');
         $new_group->add_object($self);
     }
 

@@ -24,7 +24,7 @@ BEGIN {
 
     my $debug = $ENV{DEBUG};
     $debug = looks_like_number($debug) ? (0 + $debug) : ($debug ? 1 : 0);
-    *DEBUG = $debug == 1 ? sub() { 1 } :
+    *_DEBUG = $debug == 1 ? sub() { 1 } :
              $debug == 2 ? sub() { 2 } :
              $debug == 3 ? sub() { 3 } :
              $debug == 4 ? sub() { 4 } : sub() { 0 };
@@ -147,8 +147,8 @@ sub type     { $_[0]->details->{type} // '' }
 
 Stringify an error.
 
-This does not contain a stack trace, but you can set the C<DEBUG> environment
-variable to truthy to stringify the whole error object.
+This does not contain a stack trace, but you can set the C<DEBUG> environment variable to at least 2 to
+stringify the whole error object.
 
 =cut
 
@@ -158,7 +158,7 @@ sub to_string {
     my $self = shift;
     my $msg = "$self->{trace}[0]";
     $msg .= '.' if $msg !~ /[\.\!\?]$/;
-    if (2 <= DEBUG) {
+    if (2 <= _DEBUG) {
         require Data::Dumper;
         local $Data::Dumper::Indent = 1;
         local $Data::Dumper::Quotekeys = 0;

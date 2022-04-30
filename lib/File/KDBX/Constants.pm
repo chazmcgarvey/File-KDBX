@@ -126,8 +126,9 @@ BEGIN {
         },
         history     => {
             __prefix            => 'HISTORY',
+            DEFAULT_MAX_AGE     => 365,
             DEFAULT_MAX_ITEMS   => 10,
-            DEFAULT_MAX_SIZE    => 6_291_456, # 6 M
+            DEFAULT_MAX_SIZE    => 6_291_456, # 6 MiB
         },
         iteration   => {
             ITERATION_BFS   => dualvar(1, 'bfs'),
@@ -531,6 +532,7 @@ Constants related to identifying key file types:
 Constants for history-related default values:
 
 =for :list
+= C<HISTORY_DEFAULT_MAX_AGE>
 = C<HISTORY_DEFAULT_MAX_ITEMS>
 = C<HISTORY_DEFAULT_MAX_SIZE>
 

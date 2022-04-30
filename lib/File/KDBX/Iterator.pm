@@ -8,7 +8,7 @@ use File::KDBX::Error;
 use File::KDBX::Util qw(:class :load :search);
 use Iterator::Simple;
 use Module::Loaded;
-use Ref::Util qw(is_arrayref is_coderef is_scalarref);
+use Ref::Util qw(is_arrayref is_coderef is_ref is_scalarref);
 use namespace::clean;
 
 BEGIN { mark_as_loaded('Iterator::Simple::Iterator') }
@@ -115,11 +115,19 @@ sub unget {
 
     @items = $iterator->each;
 
-    $iterator->each(sub($item, $num) { ... });
+    $iterator->each(sub($item, $num, @args) { ... }, @args);
 
-Get the rest of the items. There are two forms: Without arguments, C<each> returns a list of the rest of the
-items. Or pass a coderef to be called once per item, in order. The item is passed as the first argument to the
-given subroutine and is also available as C<$_>.
+    $iterator->each($method_name, ...);
+
+Get or act on the rest of the items. There are three forms:
+
+=for :list
+1. Without arguments, C<each> returns a list of the rest of the items.
+2. Pass a coderef to be called once per item, in order. Arguments to the coderef are the item itself (also
+   C<$_>), its index number and then any extra arguments that were passed to C<each> after the coderef.
+3. Pass a string that is the name of a method to be called on each object, in order. Any extra arguments
+   passed to C<each> after the method name are passed through to each method call. This form requires each
+   item be an object that C<can> the given method.
 
 B<NOTE:> This method drains the iterator completely, leaving it empty. See L</CAVEATS>.
 
@@ -129,8 +137,13 @@ sub each {
     my $self = shift;
     my $cb = shift or return @{$self->to_array};
 
-    my $count = 0;
-    $cb->($_, $count++) while defined (local $_ = $self->());
+    if (is_coderef($cb)) {
+        my $count = 0;
+        $cb->($_, $count++, @_) while defined (local $_ = $self->());
+    }
+    elsif (!is_ref($cb)) {
+        $_->$cb(@_) while defined (local $_ = $self->());
+    }
     return $self;
 }
 

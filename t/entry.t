@@ -133,14 +133,14 @@ subtest 'Update UUID' => sub {
     my $entry2 = $kdbx->add_entry(label => 'Bar');
 
     $entry2->url(sprintf('{REF:T@I:%s} {REF:T@I:%s}', $entry1->id, lc($entry1->id)));
-    is $entry2->expanded_url, 'Foo Foo', 'Field reference expands'
+    is $entry2->expand_url, 'Foo Foo', 'Field reference expands'
         or diag explain $entry2->url;
 
     $entry1->uuid("\1" x 16);
 
     is $entry2->url, '{REF:T@I:01010101010101010101010101010101} {REF:T@I:01010101010101010101010101010101}',
         'Replace field references when an entry UUID is changed';
-    is $entry2->expanded_url, 'Foo Foo', 'Field reference expands after UUID is changed'
+    is $entry2->expand_url, 'Foo Foo', 'Field reference expands after UUID is changed'
         or diag explain $entry2->url;
 };
 

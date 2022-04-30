@@ -44,11 +44,11 @@ subtest 'Cloning' => sub {
     $copy = $entry->clone(reference_username => 1);
     my $ref = sprintf('{REF:U@I:%s}', format_uuid($entry->uuid));
     is $copy->username, $ref, 'Copy has username reference';
-    is $copy->expanded_username, $ref, 'Entry copy does not expand username because entry is not in database';
+    is $copy->expand_username, $ref, 'Entry copy does not expand username because entry is not in database';
 
     my $group = $kdbx->add_group(label => 'Passwords');
     $group->add_entry($entry);
-    is $copy->expanded_username, $entry->username,
+    is $copy->expand_username, $entry->username,
         'Entry in database and its copy with username ref have same expanded username';
 
     $copy = $entry->clone;

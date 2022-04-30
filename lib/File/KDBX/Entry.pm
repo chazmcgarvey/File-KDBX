@@ -9,11 +9,11 @@ use Devel::GlobalDestruction;
 use Encode qw(encode);
 use File::KDBX::Constants qw(:history :icon);
 use File::KDBX::Error;
-use File::KDBX::Util qw(:class :coercion :erase :function :uri generate_uuid load_optional);
+use File::KDBX::Util qw(:assert :class :coercion :erase :function :uri generate_uuid load_optional);
 use Hash::Util::FieldHash;
 use List::Util qw(first sum0);
 use Ref::Util qw(is_coderef is_hashref is_plain_hashref);
-use Scalar::Util qw(looks_like_number);
+use Scalar::Util qw(blessed looks_like_number);
 use Storable qw(dclone);
 use Time::Piece;
 use boolean;
@@ -26,8 +26,6 @@ our $VERSION = '999.999'; # VERSION
 my $PLACEHOLDER_MAX_DEPTH = 10;
 my %PLACEHOLDERS;
 my %STANDARD_STRINGS = map { $_ => 1 } qw(Title UserName Password URL Notes);
-
-sub _parent_container { 'entries' }
 
 =attr uuid
 
@@ -57,29 +55,13 @@ TODO
 
 Text string with arbitrary tags which can be used to build a taxonomy.
 
-=attr auto_type
-
-Auto-type details.
-
-    {
-        enabled                     => true,
-        data_transfer_obfuscation   => 0,
-        default_sequence            => '{USERNAME}{TAB}{PASSWORD}{ENTER}',
-        associations                => [
-            {
-                window              => 'My Bank - Mozilla Firefox',
-                keystroke_sequence  => '{PASSWORD}{ENTER}',
-            },
-        ],
-    }
-
 =attr auto_type_enabled
 
 Whether or not the entry is eligible to be matched for auto-typing.
 
-=attr auto_type_data_transfer_obfuscation
+=attr auto_type_obfuscation
 
-TODO
+Whether or not to use some kind of obfuscation when sending keystroke sequences to applications.
 
 =attr auto_type_default_sequence
 
@@ -88,6 +70,13 @@ The default auto-type keystroke sequence.
 =attr auto_type_associations
 
 An array of window title / keystroke sequence associations.
+
+    {
+        window              => 'Example Window Title',
+        keystroke_sequence  => '{USERNAME}{TAB}{PASSWORD}{ENTER}',
+    }
+
+Keystroke sequences can have </Placeholders>, most commonly C<{USERNAME}> and C<{PASSWORD}>.
 
 =attr previous_parent_group
 
@@ -112,9 +101,26 @@ Hash with entry strings, including the standard strings as well as any custom on
         MySystem => { value => 'The mainframe' },
     }
 
+There are methods available to provide more convenient access to strings, including L</string>,
+L</string_value>, L</expand_string_value> and L</string_peek>.
+
 =attr binaries
 
-Files or attachments.
+Files or attachments. Binaries are similar to strings except they have a value of bytes instead of test
+characters.
+
+    {
+        'myfile.txt'    => {
+            value   => '...',
+        },
+        'mysecrets.txt' => {
+            value   => '...',
+            protect => true,
+        },
+    }
+
+There are methods available to provide more convenient access to binaries, including L</binary> and
+L</binary_value>.
 
 =attr custom_data
 
@@ -153,7 +159,7 @@ been accessed.
 
 =attr location_changed
 
-Date and time when the entry was last moved to a different group.
+Date and time when the entry was last moved to a different parent group.
 
 =attr notes
 
@@ -216,7 +222,7 @@ has usage_count             => 0,              store => 'times', coerce => \&to_
 has location_changed        => sub { gmtime }, store => 'times', coerce => \&to_time;
 
 # has 'auto_type.auto_type_enabled'                   => true, coerce => \&to_bool;
-has 'auto_type_data_transfer_obfuscation' => 0, path => 'auto_type.data_transfer_obfuscation',
+has 'auto_type_obfuscation' => 0, path => 'auto_type.data_transfer_obfuscation',
     coerce => \&to_number;
 has 'auto_type_default_sequence'          => '{USERNAME}{TAB}{PASSWORD}{ENTER}',
     path => 'auto_type.default_sequence', coerce => \&to_string;
@@ -232,7 +238,7 @@ my %ATTRS_STRINGS = (
 while (my ($attr, $string_key) = each %ATTRS_STRINGS) {
     no strict 'refs'; ## no critic (ProhibitNoStrict)
     *{$attr} = sub { shift->string_value($string_key, @_) };
-    *{"expanded_${attr}"} = sub { shift->expanded_string_value($string_key, @_) };
+    *{"expand_${attr}"} = sub { shift->expand_string_value($string_key, @_) };
 }
 
 my @ATTRS = qw(uuid custom_data history auto_type_enabled);
@@ -344,9 +350,9 @@ sub string_value {
     return $string->{value};
 }
 
-=method expanded_string_value
+=method expand_string_value
 
-    $string = $entry->expanded_string_value;
+    $string = $entry->expand_string_value;
 
 Same as L</string_value> but will substitute placeholders and resolve field references. Any placeholders that
 do not expand to values are left as-is.
@@ -401,12 +407,32 @@ sub _expand_string {
     return $str;
 }
 
-sub expanded_string_value {
+sub expand_string_value {
     my $self = shift;
     my $str  = $self->string_peek(@_) // return undef;
     my $cleanup = erase_scoped $str;
     return $self->_expand_string($str);
 }
+
+=attr expand_notes
+
+Shortcut equivalent to C<< ->expand_string_value('Notes') >>.
+
+=attr expand_password
+
+Shortcut equivalent to C<< ->expand_string_value('Password') >>.
+
+=attr expand_title
+
+Shortcut equivalent to C<< ->expand_string_value('Title') >>.
+
+=attr expand_url
+
+Shortcut equivalent to C<< ->expand_string_value('URL') >>.
+
+=attr expand_username
+
+Shortcut equivalent to C<< ->expand_string_value('UserName') >>.
 
 =method other_strings
 
@@ -443,18 +469,39 @@ sub string_peek {
 
 ##############################################################################
 
+=method add_auto_type_association
+
+    $entry->add_auto_type_association(\%association);
+
+Add a new auto-type association to an entry.
+
+=cut
+
 sub add_auto_type_association {
     my $self        = shift;
     my $association = shift;
     push @{$self->auto_type_associations}, $association;
 }
 
+=method expand_keystroke_sequence
+
+    $string = $entry->expand_keystroke_sequence($keystroke_sequence);
+    $string = $entry->expand_keystroke_sequence(\%association);
+    $string = $entry->expand_keystroke_sequence;    # use default auto-type sequence
+
+Get a keystroke sequence after placeholder expansion.
+
+=cut
+
 sub expand_keystroke_sequence {
     my $self = shift;
     my $association = shift;
 
-    my $keys = is_hashref($association) && exists $association->{keystroke_sequence} ?
+    my $keys;
+    if ($association) {
+        $keys = is_hashref($association) && exists $association->{keystroke_sequence} ?
         $association->{keystroke_sequence} : defined $association ? $association : '';
+    }
 
     $keys = $self->auto_type_default_sequence if !$keys;
     # TODO - Fall back to getting default sequence from parent group, which probably means we shouldn't be
@@ -477,7 +524,7 @@ Get or set a binary. Every binary has a unique (to the entry) key and flags and 
 structure. For example:
 
     $binary = {
-        value   => 'Password',
+        value   => '...',
         protect => true,    # optional
     };
 
@@ -507,6 +554,7 @@ sub binary {
 
     return $self->{binaries}{$key} = $args{value} if is_plain_hashref($args{value});
 
+    assert { !defined $args{value} || !utf8::is_utf8($args{value}) };
     while (my ($field, $value) = each %args) {
         $self->{binaries}{$key}{$field} = $value;
     }
@@ -531,26 +579,6 @@ sub binary_value {
     my $self = shift;
     my $binary = $self->binary(@_) // return undef;
     return $binary->{value};
-}
-
-##############################################################################
-
-sub searching_enabled {
-    my $self = shift;
-    my $parent = $self->group;
-    return $parent->effective_enable_searching if $parent;
-    return true;
-}
-
-sub auto_type_enabled {
-    my $self = shift;
-    $self->auto_type->{enabled} = to_bool(shift) if @_;
-    $self->auto_type->{enabled} //= true;
-    return false if !$self->auto_type->{enabled};
-    return true if !$self->is_connected;
-    my $parent = $self->group;
-    return $parent->effective_enable_auto_type if $parent;
-    return true;
 }
 
 ##############################################################################
@@ -831,8 +859,10 @@ sub size {
 sub history {
     my $self = shift;
     my $entries = $self->{history} //= [];
-    # FIXME - Looping through entries on each access is too expensive.
-    @$entries = map { $self->_wrap_entry($_, $self->kdbx) } @$entries;
+    if (@$entries && !blessed($entries->[0])) {
+        @$entries = map { $self->_wrap_entry($_, $self->kdbx) } @$entries;
+    }
+    assert { !any { !blessed $_ } @$entries };
     return $entries;
 }
 
@@ -851,14 +881,15 @@ sub history_size {
 
 =method prune_history
 
-    $entry->prune_history(%options);
+    @removed_historical_entries = $entry->prune_history(%options);
 
-Remove as many older historical entries as necessary to get under the database limits. The limits are taken
-from the connected database (if any) or can be overridden with C<%options>:
+Remove just as many older historical entries as necessary to get under the database limits. The limits are
+taken from the connected database (if any) or can be overridden with C<%options>:
 
 =for :list
 * C<max_items> - Maximum number of historical entries to keep (default: 10, no limit: -1)
 * C<max_size> - Maximum total size (in bytes) of historical entries to keep (default: 6 MiB, no limit: -1)
+* C<max_age> - Maximum age (in days) of historical entries to keep (default: 365, no limit: -1)
 
 =cut
 
@@ -866,25 +897,38 @@ sub prune_history {
     my $self = shift;
     my %args = @_;
 
-    my $max_items = $args{max_items} // eval { $self->kdbx->history_max_items }
-        // HISTORY_DEFAULT_MAX_ITEMS;
-    my $max_size  = $args{max_size} // eval { $self->kdbx->history_max_size }
-        // HISTORY_DEFAULT_MAX_SIZE;
+    my $max_items = $args{max_items} // eval { $self->kdbx->history_max_items } // HISTORY_DEFAULT_MAX_ITEMS;
+    my $max_size  = $args{max_size}  // eval { $self->kdbx->history_max_size }  // HISTORY_DEFAULT_MAX_SIZE;
+    my $max_age   = $args{max_age}   // HISTORY_DEFAULT_MAX_AGE;
 
-    # history is ordered oldest to youngest
+    # history is ordered oldest to newest
     my $history = $self->history;
 
+    my @removed;
+
     if (0 <= $max_items && $max_items < @$history) {
-        splice @$history, -$max_items;
+        push @removed, splice @$history, -$max_items;
     }
 
     if (0 <= $max_size) {
         my $current_size = $self->history_size;
         while ($max_size < $current_size) {
-            my $entry = shift @$history;
+            push @removed, my $entry = shift @$history;
             $current_size -= $entry->size;
         }
     }
+
+    if (0 <= $max_age) {
+        my $cutoff = gmtime - ($max_age * 86400);
+        for (my $i = @$history - 1; 0 <= $i; --$i) {
+            my $entry = $history->[$i];
+            next if $cutoff <= $entry->last_modification_time;
+            push @removed, splice @$history, $i, 1;
+        }
+    }
+
+    @removed = sort { $a->last_modification_time <=> $b->last_modification_time } @removed;
+    return @removed;
 }
 
 =method add_historical_entry
@@ -901,6 +945,28 @@ sub add_historical_entry {
     push @{$self->{history} //= []}, map { $self->_wrap_entry($_) } @_;
 }
 
+=method remove_historical_entry
+
+    $entry->remove_historical_entry($historical_entry);
+
+Remove an entry from the history.
+
+=cut
+
+sub remove_historical_entry {
+    my $self    = shift;
+    my $entry   = shift;
+    my $history = $self->history;
+
+    my @removed;
+    for (my $i = @$history - 1; 0 <= $i; --$i) {
+        my $item = $history->[$i];
+        next if Hash::Util::FieldHash::id($entry) != Hash::Util::FieldHash::id($item);
+        push @removed, splice @{$self->{history}}, $i, 1;
+    }
+    return @removed;
+}
+
 =method current_entry
 
     $current_entry = $entry->current_entry;
@@ -911,11 +977,11 @@ Get an entry's current entry. If the entry itself is current (not historical), i
 
 sub current_entry {
     my $self    = shift;
-    my $group   = $self->group;
+    my $parent  = $self->group;
 
-    if ($group) {
+    if ($parent) {
         my $id = $self->uuid;
-        my $entry = first { $id eq $_->uuid } @{$group->entries};
+        my $entry = first { $id eq $_->uuid } @{$parent->entries};
         return $entry if $entry;
     }
 
@@ -949,6 +1015,53 @@ This is just the inverse of L</is_current>.
 
 sub is_historical { !$_[0]->is_current }
 
+=method remove
+
+    $entry = $entry->remove;
+
+Remove an entry from its parent group. If the entry is historical, remove it from the history of the current
+entry. If the entry is current, this behaves the same as L<File::KDBX::Object/remove>.
+
+=cut
+
+sub remove {
+    my $self    = shift;
+    my $current = $self->current_entry;
+    return $self if $current->remove_historical_entry($self);
+    $self->SUPER::remove(@_);
+}
+
+##############################################################################
+
+=method searching_enabled
+
+    $bool = $entry->searching_enabled;
+
+Get whether or not an entry may show up in search results. This is determine from the entry's parent group's
+L<File::KDBX::Group/effective_enable_searching> value.
+
+Throws if entry has no parent group or if the entry is not connected to a database.
+
+=cut
+
+sub searching_enabled {
+    my $self = shift;
+    my $parent = $self->group;
+    return $parent->effective_enable_searching if $parent;
+    return true;
+}
+
+sub auto_type_enabled {
+    my $self = shift;
+    $self->auto_type->{enabled} = to_bool(shift) if @_;
+    $self->auto_type->{enabled} //= true;
+    return false if !$self->auto_type->{enabled};
+    return true if !$self->is_connected;
+    my $parent = $self->group;
+    return $parent->effective_enable_auto_type if $parent;
+    return true;
+}
+
 ##############################################################################
 
 sub _signal {
@@ -966,10 +1079,15 @@ sub _commit {
     $self->last_access_time($time);
 }
 
-sub label { shift->expanded_title(@_) }
+sub label { shift->expand_title(@_) }
+
+### Name of the parent attribute expected to contain the object
+sub _parent_container { 'entries' }
 
 1;
 __END__
+
+=for Pod::Coverage auto_type times
 
 =head1 DESCRIPTION
 
