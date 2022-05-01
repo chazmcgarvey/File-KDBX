@@ -1912,16 +1912,18 @@ __END__
 
     $kdbx = File::KDBX->load_file('passwords.kdbx', 'M@st3rP@ssw0rd!');
 
-    kdbx->entries->each(sub {
+    $kdbx->entries->each(sub {
         my ($entry) = @_;
         say 'Entry: ', $entry->title;
     });
+
+See L</RECIPES> for more examples.
 
 =head1 DESCRIPTION
 
 B<File::KDBX> provides everything you need to work with a KDBX database. A KDBX database is a hierarchical
 object database which is commonly used to store secret information securely. It was developed for the KeePass
-password safe. See L</"KDBX Introduction"> for more information about KDBX.
+password safe. See L</"Introduction to KDBX"> for more information about KDBX.
 
 This module lets you query entries, create new entries, delete entries and modify entries. The distribution
 also includes various parsers and generators for serializing and persisting databases.
@@ -1932,12 +1934,35 @@ that works well in most cases but has a small backlog of bugs and security issue
 newer KDBX version 4 files. If you're coming here from the B<File::KeePass> world, you might be interested in
 L<File::KeePass::KDBX> that is a drop-in replacement for B<File::KeePass> that uses B<File::KDBX> for storage.
 
-=head2 KDBX Introduction
+This software is a B<pre-1.0 release>. The interface should be considered pretty stable, but there might be
+minor changes up until a 1.0 release. Breaking changes will be noted in the F<Changes> file.
 
-A KDBX database consists of a hierarchical I<group> of I<entries>. Entries can contain zero or more key-value
-pairs of I<strings> and zero or more I<binaries> (i.e. octet strings). Groups, entries, strings and binaries:
-that's the KDBX vernacular. A small amount of metadata (timestamps, etc.) is associated with each entry, group
-and the database as a whole.
+=head2 Features
+
+This implementation of KDBX supports a lot of features:
+
+=for :list
+* ☑ Read and write KDBX version 3 - version 4.1
+* ☑ Read and write KDB files (requires L<File::KeePass>)
+* ☑ Unicode character strings
+* ☑ L</"Simple Expression"> Searching
+* ☑ L<Placeholders|File::KDBX::Entry/Placeholders> and L<field references|/resolve_reference>
+* ☑ L<One-time passwords|File::KDBX::Entry/"One-time passwords">
+* ☑ L<Very secure|/SECURITY>
+* ☑ L</"Memory Protection">
+* ☑ Challenge-response key components, like L<YubiKey|File::KDBX::Key::YubiKey>
+* ☑ Variety of L<key file|File::KDBX::Key::File> types: binary, hexed, hashed, XML v1 and v2
+* ☑ Pluggable registration of different kinds of ciphers and key derivation functions
+* ☑ Built-in database maintenance functions
+* ☑ Pretty fast, with L<XS optimizations|File::KDBX::XS> available
+* ☒ Database synchronization / merging (not yet)
+
+=head2 Introduction to KDBX
+
+A KDBX database consists of a tree of I<groups> and I<entries>, with a single I<root> group. Entries can
+contain zero or more key-value pairs of I<strings> and zero or more I<binaries> (i.e. octet strings). Groups,
+entries, strings and binaries: that's the KDBX vernacular. A small amount of metadata (timestamps, etc.) is
+associated with each entry, group and the database as a whole.
 
 You can think of a KDBX database kind of like a file system, where groups are directories, entries are files,
 and strings and binaries make up a file's contents.
@@ -1946,8 +1971,9 @@ Databases are typically persisted as a encrypted, compressed files. They are usu
 not over a network). The primary focus of this type of database is data security. It is ideal for storing
 relatively small amounts of data (strings and binaries) that must remain secret except to such individuals as
 have the correct I<master key>. Even if the database file were to be "leaked" to the public Internet, it
-should be virtually impossible to crack with a strong key. See L</SECURITY> for an overview of security
-considerations.
+should be virtually impossible to crack with a strong key. The KDBX format is most often used by password
+managers to store passwords so that users can know a single strong password and not have to reuse passwords
+across different websites. See L</SECURITY> for an overview of security considerations.
 
 =head1 RECIPES
 
@@ -2344,16 +2370,16 @@ your own query logic, like this:
 =head2 Iteration
 
 Iterators are the built-in way to navigate or walk the database tree. You get an iterator from L</entries>,
-L</groups> and L</groups>. You can specify the search algorithm to iterate over objects in different orders
-using the C<algorith> option, which can be one of:
+L</groups> and L</objects>. You can specify the search algorithm to iterate over objects in different orders
+using the C<algorith> option, which can be one of these L<constants|File::KDBX::Constants/":iteration">:
 
 =for :list
-* C<ITERATION_IDS> - Iterative deepending search (default)
+* C<ITERATION_IDS> - Iterative deepening search (default)
 * C<ITERATION_DFS> - Depth-first search
-* C<ITERATION_BFS> - Breatdth-first search
+* C<ITERATION_BFS> - Breadth-first search
 
-When iterating over objects generically, groups always preceed their direct entries (if any). When the
-C<history> option is used, current entries always preceed historical entries.
+When iterating over objects generically, groups always precede their direct entries (if any). When the
+C<history> option is used, current entries always precede historical entries.
 
 If you have a database tree like this:
 
@@ -2378,7 +2404,7 @@ BFS order of groups is: Root, Group1, Group3, Group2
 BFS order of entries is: EntryA, EntryC, EntryB
 BFS order of objects is: Root, Group1, EntryA, Group3, EntryC, Group2, EntryB
 
-=head1 MERGING
+=head1 SYNCHRONIZING
 
 B<TODO> - This is a planned feature, not yet implemented.
 
@@ -2460,7 +2486,10 @@ when trying to use such features with undersized IVs.
 
 =head1 SEE ALSO
 
-L<File::KeePass> is a much older alternative. It's good but has a backlog of bugs and lacks support for newer
-KDBX features.
+=for :list
+* L<KeePass Password Safe|https://keepass.info/> - The original KeePass
+* L<KeePassXC|https://keepassxc.org/> - Cross-Platform Password Manager written in C++
+* L<File::KeePass> has overlapping functionality. It's good but has a backlog of some pretty critical bugs and
+    lacks support for newer KDBX features.
 
 =cut
