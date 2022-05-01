@@ -2492,4 +2492,24 @@ when trying to use such features with undersized IVs.
 * L<File::KeePass> has overlapping functionality. It's good but has a backlog of some pretty critical bugs and
     lacks support for newer KDBX features.
 
+=begin :header
+
+=begin markdown
+
+[![Linux](https://github.com/chazmcgarvey/File-KDBX/actions/workflows/linux.yml/badge.svg)](https://github.com/chazmcgarvey/File-KDBX/actions/workflows/linux.yml)
+[![macOS](https://github.com/chazmcgarvey/File-KDBX/actions/workflows/macos.yml/badge.svg)](https://github.com/chazmcgarvey/File-KDBX/actions/workflows/macos.yml)
+[![Windows](https://github.com/chazmcgarvey/File-KDBX/actions/workflows/windows.yml/badge.svg)](https://github.com/chazmcgarvey/File-KDBX/actions/workflows/windows.yml)
+
+=end markdown
+
+=begin HTML
+
+<a title="Linux" href="https://github.com/chazmcgarvey/File-KDBX/actions/workflows/linux.yml"><img src="https://github.com/chazmcgarvey/File-KDBX/actions/workflows/linux.yml/badge.svg"></a>
+<a title="macOS" href="https://github.com/chazmcgarvey/File-KDBX/actions/workflows/macos.yml"><img src="https://github.com/chazmcgarvey/File-KDBX/actions/workflows/macos.yml/badge.svg"></a>
+<a title="Windows" href="https://github.com/chazmcgarvey/File-KDBX/actions/workflows/windows.yml"><img src="https://github.com/chazmcgarvey/File-KDBX/actions/workflows/windows.yml/badge.svg"></a>
+
+=end HTML
+
+=end :header
+
 =cut
