@@ -1,0 +1,33 @@
+name: Windows
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: ["*"]
+
+jobs:
+  unit-tests:
+    name: "Test perl on Windows"
+
+    runs-on: windows-latest
+
+    steps:
+      - name: Install perl
+        run: |
+          choco install strawberryperl
+          echo "C:\strawberry\c\bin;C:\strawberry\perl\site\bin;C:\strawberry\perl\bin" >>$GITHUB_PATH
+      - name: Print perl version
+        run: perl -V
+      - name: Install dzil
+        run: cpanm -n Dist::Zilla
+      - name: Configure git
+        run: git config --global core.autocrlf input
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Install author dependencies
+        run: dzil authordeps --missing |cpanm -n
+      - name: Install module dependencies
+        run: dzil listdeps --develop --missing |cpanm -n
+      - name: Run tests
+        run: dzil smoke --author --release
