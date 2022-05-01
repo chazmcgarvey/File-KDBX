@@ -1,0 +1,14 @@
+*#
+*.bs
+*.o
+*.tar*
+*~
+/.build
+/.perl-version
+/File-KDBX-*
+/MYMETA.*
+/blib
+/cover_db
+/fatlib
+/local*
+/pm_to_blib
