@@ -264,7 +264,7 @@ has 'meta.database_description'             => '',                          coer
 has 'meta.database_description_changed'     => sub { gmtime },              coerce => \&to_time;
 has 'meta.default_username'                 => '',                          coerce => \&to_string;
 has 'meta.default_username_changed'         => sub { gmtime },              coerce => \&to_time;
-has 'meta.maintenance_history_days'         => 0,                           coerce => \&to_number;
+has 'meta.maintenance_history_days'         => HISTORY_DEFAULT_MAX_AGE,     coerce => \&to_number;
 has 'meta.color'                            => '',                          coerce => \&to_string;
 has 'meta.master_key_changed'               => sub { gmtime },              coerce => \&to_time;
 has 'meta.master_key_change_rec'            => -1,                          coerce => \&to_number;
@@ -398,8 +398,9 @@ because it autovivifies when adding entries and groups to the database.
 Every database has only a single root group at a time. Some old KDB files might have multiple root groups.
 When reading such files, a single implicit root group is created to contain the actual root groups. When
 writing to such a format, if the root group looks like it was implicitly created then it won't be written and
-the resulting file might have multiple root groups. This allows working with older files without changing
-their written internal structure while still adhering to modern semantics while the database is opened.
+the resulting file might have multiple root groups, as it was before loading. This allows working with older
+files without changing their written internal structure while still adhering to modern semantics while the
+database is opened.
 
 The root group of a KDBX database contains all of the database's entries and other groups. If you replace the
 root group, you are essentially replacing the entire database contents with something else.
@@ -592,7 +593,7 @@ Add a group to a database. This is equivalent to identifying a parent group and 
 L<File::KDBX::Group/add_group> on the parent group, forwarding the arguments. Available options:
 
 =for :list
-* C<group> (aka C<parent>) - Group object or group UUID to add the group to (default: root group)
+* C<group> - Group object or group UUID to add the group to (default: root group)
 
 =cut
 
@@ -602,7 +603,7 @@ sub add_group {
     my %args    = @_;
 
     # find the right group to add the group to
-    my $parent = delete $args{group} // delete $args{parent} // $self->root;
+    my $parent = delete $args{group} // $self->root;
     $parent = $self->groups->grep({uuid => $parent})->next if !ref $parent;
     $parent or throw 'Invalid group';
 
@@ -649,7 +650,7 @@ Add a entry to a database. This is equivalent to identifying a parent group and 
 L<File::KDBX::Group/add_entry> on the parent group, forwarding the arguments. Available options:
 
 =for :list
-* C<group> (aka C<parent>) - Group object or group UUID to add the entry to (default: root group)
+* C<group> - Group object or group UUID to add the entry to (default: root group)
 
 =cut
 
@@ -659,7 +660,7 @@ sub add_entry {
     my %args    = @_;
 
     # find the right group to add the entry to
-    my $parent = delete $args{group} // delete $args{parent} // $self->root;
+    my $parent = delete $args{group} // $self->root;
     $parent = $self->groups->grep({uuid => $parent})->next if !ref $parent;
     $parent or throw 'Invalid group';
 
@@ -1368,7 +1369,7 @@ sub prune_history {
 
     my $max_items = $args{max_items} // $self->history_max_items // HISTORY_DEFAULT_MAX_ITEMS;
     my $max_size  = $args{max_size}  // $self->history_max_size  // HISTORY_DEFAULT_MAX_SIZE;
-    my $max_age   = $args{max_age}   // HISTORY_DEFAULT_MAX_AGE;
+    my $max_age   = $args{max_age}   // $self->maintenance_history_days // HISTORY_DEFAULT_MAX_AGE;
 
     my @removed;
     $self->entries->each(sub {
@@ -1418,7 +1419,8 @@ sub randomize_seeds {
     $key = $kdbx->key($primitive);
 
 Get or set a L<File::KDBX::Key>. This is the master key (e.g. a password or a key file that can decrypt
-a database). See L<File::KDBX::Key/new> for an explanation of what the primitive can be.
+a database). You can also pass a primitive that can be cast to a B<Key>. See L<File::KDBX::Key/new> for an
+explanation of what the primitive can be.
 
 You generally don't need to call this directly because you can provide the key directly to the loader or
 dumper when loading or dumping a KDBX file.
@@ -1436,10 +1438,11 @@ sub key {
     $key = $kdbx->composite_key($key);
     $key = $kdbx->composite_key($primitive);
 
-Construct a L<File::KDBX::Key::Composite> from a primitive. See L<File::KDBX::Key/new> for an explanation of
-what the primitive can be. If the primitive does not represent a composite key, it will be wrapped.
+Construct a L<File::KDBX::Key::Composite> from a B<Key> or primitive. See L<File::KDBX::Key/new> for an
+explanation of what the primitive can be. If the primitive does not represent a composite key, it will be
+wrapped.
 
-You generally don't need to call this directly. The parser and writer use it to transform a master key into
+You generally don't need to call this directly. The loader and dumper use it to transform a master key into
 a raw encryption key.
 
 =cut
@@ -1522,7 +1525,7 @@ cipher), not a L<File::KDBX::Key> or primitive.
 If not passed, the UUID comes from C<< $kdbx->headers->{cipher_id} >> and the encryption IV comes from
 C<< $kdbx->headers->{encryption_iv} >>.
 
-You generally don't need to call this directly. The parser and writer use it to decrypt and encrypt KDBX
+You generally don't need to call this directly. The loader and dumper use it to decrypt and encrypt KDBX
 files.
 
 =cut
@@ -1550,7 +1553,7 @@ C<< $kdbx->headers->{inner_random_stream_key} >> (respectively) for KDBX3 files 
 C<< $kdbx->inner_headers->{inner_random_stream_key} >> and
 C<< $kdbx->inner_headers->{inner_random_stream_id} >> (respectively) for KDBX4 files.
 
-You generally don't need to call this directly. The parser and writer use it to scramble protected strings.
+You generally don't need to call this directly. The loader and dumper use it to scramble protected strings.
 
 =cut
 
@@ -1792,10 +1795,6 @@ When a new entry is created, the I<UserName> string will be populated with this 
 
 Timestamp indicating when the default username was last changed.
 
-=attr maintenance_history_days
-
-TODO... not really sure what this is. 😀
-
 =attr color
 
 A color associated with the database (in the form C<#ffffff> where "f" is a hexidecimal digit). Some agents
@@ -1832,7 +1831,7 @@ The UUID of a group used to store thrown-away groups and entries.
 
 =attr recycle_bin_changed
 
-Timestamp indicating when the recycle bin was last changed.
+Timestamp indicating when the recycle bin group was last changed.
 
 =attr entry_templates_group
 
@@ -1852,11 +1851,15 @@ The UUID of the group visible at the top of the list.
 
 =attr history_max_items
 
-The maximum number of historical entries allowed to be saved for each entry.
+The maximum number of historical entries that should be kept for each entry. Default is 10.
 
 =attr history_max_size
 
-The maximum total size (in bytes) that each individual entry's history is allowed to grow.
+The maximum total size (in bytes) that each individual entry's history is allowed to grow. Default is 6 MiB.
+
+=attr maintenance_history_days
+
+The maximum age (in days) historical entries should be kept. Default it 365.
 
 =attr settings_changed
 
@@ -1921,12 +1924,12 @@ See L</RECIPES> for more examples.
 
 =head1 DESCRIPTION
 
-B<File::KDBX> provides everything you need to work with a KDBX database. A KDBX database is a hierarchical
+B<File::KDBX> provides everything you need to work with KDBX databases. A KDBX database is a hierarchical
 object database which is commonly used to store secret information securely. It was developed for the KeePass
 password safe. See L</"Introduction to KDBX"> for more information about KDBX.
 
-This module lets you query entries, create new entries, delete entries and modify entries. The distribution
-also includes various parsers and generators for serializing and persisting databases.
+This module lets you query entries, create new entries, delete entries, modify entries and more. The
+distribution also includes various parsers and generators for serializing and persisting databases.
 
 The design of this software was influenced by the L<KeePassXC|https://github.com/keepassxreboot/keepassxc>
 implementation of KeePass as well as the L<File::KeePass> module. B<File::KeePass> is an alternative module
@@ -2148,9 +2151,9 @@ unfortunately not portable.
 To find things in a KDBX database, you should use a filtered iterator. If you have an iterator, such as
 returned by L</entries>, L</groups> or even L</objects> you can filter it using L<File::KDBX::Iterator/where>.
 
-    my $filtered_entries = $kdbx->entries->where($query);
+    my $filtered_entries = $kdbx->entries->where(\&query);
 
-A C<$query> is just a subroutine that you can either write yourself or have generated for you from either
+A C<\&query> is just a subroutine that you can either write yourself or have generated for you from either
 a L</"Simple Expression"> or L</"Declarative Syntax">. It's easier to have your query generated, so I'll cover
 that first.
 
@@ -2261,7 +2264,7 @@ operators are:
 * C<==> - Number equal
 * C<!=> - Number not equal
 * C<< < >> - Number less than
-* C<< > >>> - Number greater than
+* C<< > >> - Number greater than
 * C<< <= >> - Number less than or equal
 * C<< >= >> - Number less than or equal
 * C<=~> - String match regular expression

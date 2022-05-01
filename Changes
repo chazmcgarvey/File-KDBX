@@ -2,7 +2,10 @@ Revision history for File-KDBX.
 
 {{$NEXT}}
 
-  * Remove min_version methods from dumper and loader
+  * Now use the database maintenance_history_days value as the default
+    "max_age" value in prune_history method.
+  * Removed the min_version methods from dumper and loader because it was
+    unused and unnecessary.
 
 0.800     2022-04-30 21:14:30-0600
 

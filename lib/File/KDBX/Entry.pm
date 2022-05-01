@@ -845,7 +845,7 @@ sub prune_history {
 
     my $max_items = $args{max_items} // eval { $self->kdbx->history_max_items } // HISTORY_DEFAULT_MAX_ITEMS;
     my $max_size  = $args{max_size}  // eval { $self->kdbx->history_max_size }  // HISTORY_DEFAULT_MAX_SIZE;
-    my $max_age   = $args{max_age}   // HISTORY_DEFAULT_MAX_AGE;
+    my $max_age   = $args{max_age}   // eval { $self->kdbx->maintenance_history_days } // HISTORY_DEFAULT_MAX_AGE;
 
     # history is ordered oldest to newest
     my $history = $self->history;
