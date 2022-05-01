@@ -27,7 +27,7 @@ sub init {
     $raw_key = $key->raw_key($challenge);
 
 Get the raw key which is the response to a challenge. The response will be saved so that subsequent calls
-(with or without the challenge) can provide the response without challenging the responder again. Only once
+(with or without the challenge) can provide the response without challenging the responder again. Only one
 response is saved at a time; if you call this with a different challenge, the new response is saved over any
 previous response.
 
@@ -78,8 +78,8 @@ __END__
 
 A challenge-response key is kind of like multifactor authentication, except you don't really I<authenticate>
 to a KDBX database because it's not a service. Specifically it would be the "what you have" component. It
-assumes there is some device that can store a key that is only known to the unlocker of a database.
-A challenge is made to the device and the response generated based on the key is used as the raw key.
+assumes there is some device that can store a key that is only known to the owner of a database. A challenge
+is made to the device and the response generated based on the key is used as the raw key.
 
 Inherets methods and attributes from L<File::KDBX::Key>.
 

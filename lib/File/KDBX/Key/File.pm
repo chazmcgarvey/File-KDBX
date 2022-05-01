@@ -23,7 +23,7 @@ our $VERSION = '999.999'; # VERSION
 
     $type = $key->type;
 
-Get the type of key file. Can be one of:
+Get the type of key file. Can be one of from L<File::KDBX::Constants/":key_file">:
 
 =for :list
 * C<KEY_FILE_TYPE_BINARY>

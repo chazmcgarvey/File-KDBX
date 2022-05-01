@@ -21,10 +21,6 @@ extends 'File::KDBX::Object';
 
 our $VERSION = '999.999'; # VERSION
 
-=attr uuid
-
-128-bit UUID identifying the group within the database.
-
 =attr name
 
 The human-readable name of the group.
@@ -32,18 +28,6 @@ The human-readable name of the group.
 =attr notes
 
 Free form text string associated with the group.
-
-=attr tags
-
-Text string with arbitrary tags which can be used to build a taxonomy.
-
-=attr icon_id
-
-Integer representing a default icon. See L<File::KDBX::Constants/":icon"> for valid values.
-
-=attr custom_icon_uuid
-
-128-bit UUID identifying a custom icon within the database.
 
 =attr is_expanded
 
@@ -65,15 +49,6 @@ Whether or not entries within the group can show up in search results, inheritab
 
 The UUID of the entry visible at the top of the list.
 
-=attr custom_data
-
-A set of key-value pairs used to store arbitrary data, usually used by software to keep track of state rather
-than by end users (who typically work with the strings and binaries).
-
-=attr previous_parent_group
-
-128-bit UUID identifying a group within the database.
-
 =attr entries
 
 Array of entries contained within the group.
@@ -81,34 +56,6 @@ Array of entries contained within the group.
 =attr groups
 
 Array of subgroups contained within the group.
-
-=attr last_modification_time
-
-Date and time when the entry was last modified.
-
-=attr creation_time
-
-Date and time when the entry was created.
-
-=attr last_access_time
-
-Date and time when the entry was last accessed.
-
-=attr expiry_time
-
-Date and time when the entry expired or will expire.
-
-=attr expires
-
-Boolean value indicating whether or not an entry is expired.
-
-=attr usage_count
-
-TODO
-
-=attr location_changed
-
-Date and time when the entry was last moved to a different parent group.
 
 =cut
 
@@ -160,7 +107,7 @@ sub uuid {
 
     \@entries = $group->entries;
 
-Get an array of direct entries within a group.
+Get an array of direct child entries within a group.
 
 =cut
 
@@ -561,7 +508,7 @@ sub is_recycle_bin {
 
     $bool = $group->is_entry_templates;
 
-Get whether or not a group is the group containing entry template of its connected database.
+Get whether or not a group is the group containing entry template in its connected database.
 
 =cut
 

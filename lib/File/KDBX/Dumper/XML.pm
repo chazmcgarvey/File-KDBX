@@ -62,8 +62,8 @@ the authenticity of header data. This is unnecessary and should not be used with
 format uses HMAC-SHA256 to detect tampering.
 
 L<File::KDBX::Dumper::V3> automatically calculates the header hash an provides it to this module, and plain
-XML files which don't have a KDBX wrapper don't have headers and so should have a header hash. Therefore there
-is probably never any reason to set this manually.
+XML files which don't have a KDBX wrapper don't have headers and so should not have a header hash. Therefore
+there is probably never any reason to set this manually.
 
 =cut
 

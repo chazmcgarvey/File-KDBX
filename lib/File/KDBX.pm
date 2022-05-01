@@ -1928,7 +1928,7 @@ password safe. See L</"Introduction to KDBX"> for more information about KDBX.
 This module lets you query entries, create new entries, delete entries and modify entries. The distribution
 also includes various parsers and generators for serializing and persisting databases.
 
-This design of this software was influenced by the L<KeePassXC|https://github.com/keepassxreboot/keepassxc>
+The design of this software was influenced by the L<KeePassXC|https://github.com/keepassxreboot/keepassxc>
 implementation of KeePass as well as the L<File::KeePass> module. B<File::KeePass> is an alternative module
 that works well in most cases but has a small backlog of bugs and security issues and also does not work with
 newer KDBX version 4 files. If you're coming here from the B<File::KeePass> world, you might be interested in
@@ -1939,15 +1939,13 @@ minor changes up until a 1.0 release. Breaking changes will be noted in the F<Ch
 
 =head2 Features
 
-This implementation of KDBX supports a lot of features:
-
 =for :list
 * ☑ Read and write KDBX version 3 - version 4.1
 * ☑ Read and write KDB files (requires L<File::KeePass>)
 * ☑ Unicode character strings
 * ☑ L</"Simple Expression"> Searching
 * ☑ L<Placeholders|File::KDBX::Entry/Placeholders> and L<field references|/resolve_reference>
-* ☑ L<One-time passwords|File::KDBX::Entry/"One-time passwords">
+* ☑ L<One-time passwords|File::KDBX::Entry/"One-time Passwords">
 * ☑ L<Very secure|/SECURITY>
 * ☑ L</"Memory Protection">
 * ☑ Challenge-response key components, like L<YubiKey|File::KDBX::Key::YubiKey>
@@ -1967,7 +1965,7 @@ associated with each entry, group and the database as a whole.
 You can think of a KDBX database kind of like a file system, where groups are directories, entries are files,
 and strings and binaries make up a file's contents.
 
-Databases are typically persisted as a encrypted, compressed files. They are usually accessed directly (i.e.
+Databases are typically persisted as encrypted, compressed files. They are usually accessed directly (i.e.
 not over a network). The primary focus of this type of database is data security. It is ideal for storing
 relatively small amounts of data (strings and binaries) that must remain secret except to such individuals as
 have the correct I<master key>. Even if the database file were to be "leaked" to the public Internet, it
@@ -2392,17 +2390,16 @@ If you have a database tree like this:
         - Group3
             - EntryC
 
-IDS order of groups is: Root, Group1, Group2, Group3
-IDS order of entries is: EntryA, EntryB, EntryC
-IDS order of objects is: Root, Group1, EntryA, Group2, EntryB, Group3, EntryC
-
-DFS order of groups is: Group2, Group1, Group3, Root
-DFS order of entries is: EntryB, EntryA, EntryC
-DFS order of objects is: Group2, EntryB, Group1, EntryA, Group3, EntryC, Root
-
-BFS order of groups is: Root, Group1, Group3, Group2
-BFS order of entries is: EntryA, EntryC, EntryB
-BFS order of objects is: Root, Group1, EntryA, Group3, EntryC, Group2, EntryB
+=for :list
+* IDS order of groups is: Root, Group1, Group2, Group3
+* IDS order of entries is: EntryA, EntryB, EntryC
+* IDS order of objects is: Root, Group1, EntryA, Group2, EntryB, Group3, EntryC
+* DFS order of groups is: Group2, Group1, Group3, Root
+* DFS order of entries is: EntryB, EntryA, EntryC
+* DFS order of objects is: Group2, EntryB, Group1, EntryA, Group3, EntryC, Root
+* BFS order of groups is: Root, Group1, Group3, Group2
+* BFS order of entries is: EntryA, EntryC, EntryB
+* BFS order of objects is: Root, Group1, EntryA, Group3, EntryC, Group2, EntryB
 
 =head1 SYNCHRONIZING
 

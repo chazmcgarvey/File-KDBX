@@ -236,7 +236,9 @@ sub STORABLE_thaw {
     $kdbx = $object->kdbx;
     $object->kdbx($kdbx);
 
-Get or set the L<File::KDBX> instance connected with this object.
+Get or set the L<File::KDBX> instance connected with this object. Throws if the object is disconnected. Other
+object methods might only work if the object is connected to a database and so they might also throw if the
+object is disconnected. If you're not sure if an object is connected, try L</is_connected>.
 
 =cut
 
@@ -368,7 +370,7 @@ sub lineage {
     $object = $object->remove(%options);
 
 Remove an object from its parent. If the object is a group, all contained objects stay with the object and so
-are removed as well. Options:
+are removed as well, just like cutting off a branch takes the leafs as well. Options:
 
 =for :list
 * C<signal> Whether or not to signal the removal to the connected database (default: true)
@@ -484,7 +486,9 @@ sub custom_icon {
     $object->custom_data(%data);
     $object->custom_data(key => $value, %data);
 
-Get and set custom data. Custom data is metadata associated with an object.
+Get and set custom data. Custom data is metadata associated with an object. It is a set of key-value pairs
+used to store arbitrary data, usually used by software like plug-ins to keep track of state rather than by end
+users.
 
 Each data item can have a few attributes associated with it.
 
@@ -833,5 +837,54 @@ Instead, do this:
 
     # OR move an existing entry from one database to another:
     $another_kdbx->add_entry($entry->remove);
+
+=attr uuid
+
+128-bit UUID identifying the object within the connected database.
+
+=attr icon_id
+
+Integer representing a default icon. See L<File::KDBX::Constants/":icon"> for valid values.
+
+=attr custom_icon_uuid
+
+128-bit UUID identifying a custom icon within the connected database.
+
+=attr tags
+
+Text string with arbitrary tags which can be used to build a taxonomy.
+
+=attr previous_parent_group
+
+128-bit UUID identifying a group within the connected database the previously contained the object.
+
+=attr last_modification_time
+
+Date and time when the entry was last modified.
+
+=attr creation_time
+
+Date and time when the entry was created.
+
+=attr last_access_time
+
+Date and time when the entry was last accessed.
+
+=attr expiry_time
+
+Date and time when the entry expired or will expire.
+
+=attr expires
+
+Boolean value indicating whether or not an entry is expired.
+
+=attr usage_count
+
+The number of times an entry has been used, which typically means how many times the B<Password> string has
+been accessed.
+
+=attr location_changed
+
+Date and time when the entry was last moved to a different parent group.
 
 =cut

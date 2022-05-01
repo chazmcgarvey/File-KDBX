@@ -20,7 +20,7 @@ our $VERSION = '999.999'; # VERSION
 
     \&iterator = File::KDBX::Iterator->new(\&iterator);
 
-Blesses an iterator to augment it with buffering plus some useful utility methods.
+Bless an iterator to augment it with buffering plus some useful utility methods.
 
 =cut
 
@@ -54,7 +54,6 @@ sub new {
     $item = $iterator->();
 
     $item = $iterator->next(\&query);
-    $item = $iterator->next([\'simple expression', @fields]);
 
 Get the next item or C<undef> if there are no more items. If a query is passed, get the next matching item,
 discarding any unmatching items before the matching item. Example:
@@ -94,13 +93,17 @@ sub peek {
 
 =method unget
 
+    # Replace buffer:
     $iterator->unget(\@items);
-    $iterator->unget(...);
     # OR equivalently
     $iterator->(\@items);
-    $iterator->(...);
 
-Replace the buffer or unshift one or more items to the current buffer.
+    # Unshift onto buffer:
+    $iterator->unget(@items);
+    # OR equivalently
+    $iterator->(@items);
+
+Replace the buffer (first form) or unshift one or more items to the current buffer (second form).
 
 See L</Buffer>.
 
@@ -119,12 +122,13 @@ sub unget {
 
     $iterator->each($method_name, ...);
 
-Get or act on the rest of the items. There are three forms:
+Get or act on the rest of the items. This method has three forms:
 
 =for :list
 1. Without arguments, C<each> returns a list of the rest of the items.
 2. Pass a coderef to be called once per item, in order. Arguments to the coderef are the item itself (also
-   C<$_>), its index number and then any extra arguments that were passed to C<each> after the coderef.
+   available as C<$_>), its index number and then any extra arguments that were passed to C<each> after the
+   coderef.
 3. Pass a string that is the name of a method to be called on each object, in order. Any extra arguments
    passed to C<each> after the method name are passed through to each method call. This form requires each
    item be an object that C<can> the given method.
@@ -152,10 +156,12 @@ sub each {
 =method where
 
     \&iterator = $iterator->grep(\&query);
-    \&iterator = $iterator->grep([\'simple expression', @fields]);
 
 Get a new iterator draining from an existing iterator but providing only items that pass a test or are matched
-by a query.
+by a query. In its basic form this method is very much like perl's built-in grep function, except for
+iterators.
+
+There are many examples of the various forms of this method at L<File::KDBX/QUERY>.
 
 =cut
 
@@ -177,7 +183,8 @@ sub grep {
 
     \&iterator = $iterator->map(\&code);
 
-Get a new iterator draining from an existing iterator but providing modified items.
+Get a new iterator draining from an existing iterator but providing modified items. In its basic form this
+method is very much like perl's built-in map function, except for iterators.
 
 =cut
 
@@ -206,8 +213,6 @@ subroutine is called once for each item and should return a string value. Option
 * C<case> - If true, take case into account, otherwise ignore case (default: true)
 * C<collate> - If true, use B<Unicode::Collate> (if available), otherwise use perl built-ins (default: true)
 * Any B<Unicode::Collate> option is also supported.
-
-C<sort_by> and C<order_by> are aliases.
 
 B<NOTE:> This method drains the iterator completely and places the sorted items onto the buffer. See
 L</CAVEATS>.
@@ -274,8 +279,6 @@ each item and should return a numerical value. Options:
 =for :list
 * C<ascending> - Order ascending if true, descending otherwise (default: true)
 
-C<nsort_by> and C<norder_by> are aliases.
-
 B<NOTE:> This method drains the iterator completely and places the sorted items onto the buffer. See
 L</CAVEATS>.
 
@@ -316,7 +319,7 @@ sub nsort_by { shift->norder_by(@_) }
 
 Get a new iterator draining from an existing iterator but providing only a limited number of items.
 
-C<limit> as an alias for L<Iterator::Simple/"$iterator->head($count)">.
+C<limit> as an alias for L<< Iterator::Simple/"$iterator->head($count)" >>.
 
 =cut
 
@@ -396,13 +399,14 @@ supported but this iterator that are not documented here, so consider that addit
 =head2 Buffer
 
 This iterator is buffered, meaning it can drain from an iterator subroutine under the hood, storing items
-temporarily to be accessed later. This allows features like L</peek> and L</sort> which might be useful in the
-context of KDBX databases which are normally pretty small so draining an iterator isn't cost-prohibitive.
+temporarily to be accessed later. This allows features like L</peek> and L</order_by> which might be useful in
+the context of KDBX databases which are normally pretty small so draining an iterator completely isn't
+cost-prohibitive in terms of memory usage.
 
 The way this works is that if you call an iterator without arguments, it acts like a normal iterator. If you
 call it with arguments, however, the arguments are added to the buffer. When called without arguments, the
 buffer is drained before the iterator function is. Using L</unget> is equivalent to calling the iterator with
-arguments, and as L</next> is equivalent to calling the iterator without arguments.
+arguments, and L</next> is equivalent to calling the iterator without arguments.
 
 =head1 CAVEATS
 

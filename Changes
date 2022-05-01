@@ -2,6 +2,8 @@ Revision history for File-KDBX.
 
 {{$NEXT}}
 
+  * Remove min_version methods from dumper and loader
+
 0.800     2022-04-30 21:14:30-0600
 
   * Initial release

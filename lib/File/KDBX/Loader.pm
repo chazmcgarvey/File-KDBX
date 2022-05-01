@@ -105,7 +105,7 @@ sub reset {
 
 Load a KDBX file.
 
-The C<$key> is either a L<File::KDBX::Key> or a primitive that can be converted to a Key object.
+The C<$key> is either a L<File::KDBX::Key> or a primitive that can be cast to a Key object.
 
 =cut
 
@@ -230,25 +230,12 @@ formats:
 
 =for :list
 * C<XML> - Read the database groups and entries as XML (default)
-* C<Raw> - Read parsing and store the result in L<File::KDBX/raw>
+* C<Raw> - Read and store the result in L<File::KDBX/raw> without parsing
 
 =cut
 
 has format          => undef, is => 'ro';
 has inner_format    => 'XML', is => 'ro';
-
-=method min_version
-
-    $min_version = File::KDBX::Loader->min_version;
-
-Get the minimum KDBX file version supported, which is 3.0 or C<0x00030000> as
-it is encoded.
-
-To read older KDBX files unsupported by this module, try L<File::KeePass>.
-
-=cut
-
-sub min_version { KDBX_VERSION_OLDEST }
 
 =method read_magic_numbers
 

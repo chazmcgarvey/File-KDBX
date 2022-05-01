@@ -685,7 +685,7 @@ The logic can be specified in a manner similar to L<SQL::Abstract/"WHERE CLAUSES
 for this function, but this code is distinct, supporting an overlapping but not identical feature set and
 having its own bugs.
 
-See L<File::KDBX/QUERY> for examples.
+See L<File::KDBX/"Declarative Syntax"> for examples.
 
 =cut
 

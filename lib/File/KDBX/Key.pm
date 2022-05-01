@@ -160,8 +160,8 @@ sub _clear_raw_key {
 
     $key = $key->hide;
 
-Put the raw key in L<File::KDBX/"Memory Protection">. Does nothing if the raw key is already in memory
-protection. Returns itself to allow method chaining.
+Put the raw key in L<memory protection|File::KDBX/"Memory Protection">. Does nothing if the raw key is already
+in memory protection. Returns itself to allow method chaining.
 
 =cut
 
@@ -214,7 +214,7 @@ There are several different types of keys, each implemented as a subclass:
 
 =for :list
 * L<File::KDBX::Key::Password> - Password or passphrase, knowledge of a string of characters
-* L<File::KDBX::Key::File> - Possession of a file ("key file") with a secret.
+* L<File::KDBX::Key::File> - Possession of a file ("key file") with a secret
 * L<File::KDBX::Key::ChallengeResponse> - Possession of a device that responds correctly when challenged
 * L<File::KDBX::Key::YubiKey> - Possession of a YubiKey hardware device (a type of challenge-response)
 * L<File::KDBX::Key::Composite> - One or more keys combined as one
@@ -227,11 +227,11 @@ password key by itself. (Of course it's much better to not have any weak compone
 B<COMPATIBILITY NOTE:> Most KeePass implementations are limited in the types and numbers of keys they support.
 B<Password> keys are pretty much universally supported. B<File> keys are pretty well-supported. Many do not
 support challenge-response keys. If you are concerned about compatibility, you should stick with one of these
-configurations:
+well-supported configurations:
 
 =for :list
 * One password
 * One key file
-* One password and one key file
+* Composite of one password and one key file
 
 =cut
