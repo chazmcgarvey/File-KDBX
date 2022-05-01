@@ -151,7 +151,7 @@ sub add_protected {
     @strings or throw 'Must provide strings to lock';
 
     for my $string (@strings) {
-        my $item = {str => $string};
+        my $item = {str => $string, off => $self->{counter}};
         $item->{filter} = $filter if defined $filter;
         if (is_scalarref($string)) {
             next if !defined $$string;

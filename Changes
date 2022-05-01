@@ -2,6 +2,9 @@ Revision history for File-KDBX.
 
 {{$NEXT}}
 
+  * Fix a bug where peeking at memory-protected strings and binaries does not
+    work without unlocking the database at least once.
+
 0.900     2022-05-01 12:55:59-0600
 
   * Removed the min_version methods from dumper and loader because it was
