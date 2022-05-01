@@ -60,7 +60,6 @@ do { my $x = {
                                       'IO::Handle' => '0',
                                       'IPC::Cmd' => '0.52',
                                       'Iterator::Simple' => '0',
-                                      'Iterator::Simple::Iterator' => '0',
                                       'List::Util' => '1.33',
                                       'Module::Load' => '0',
                                       'Module::Loaded' => '0',

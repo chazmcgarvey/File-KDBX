@@ -14,7 +14,7 @@ use Ref::Util qw(is_arrayref is_coderef is_hashref is_ref is_scalarref);
 use Scalar::Util qw(blessed openhandle);
 use namespace::clean;
 
-our $VERSION = '0.800'; # VERSION
+our $VERSION = '0.900'; # VERSION
 
 fieldhashes \my %SAFE;
 
@@ -140,7 +140,7 @@ File::KDBX::Key - A credential that can protect a KDBX file
 
 =head1 VERSION
 
-version 0.800
+version 0.900
 
 =head1 DESCRIPTION
 
@@ -159,7 +159,7 @@ L<File::KDBX::Key::Password> - Password or passphrase, knowledge of a string of 
 
 =item *
 
-L<File::KDBX::Key::File> - Possession of a file ("key file") with a secret.
+L<File::KDBX::Key::File> - Possession of a file ("key file") with a secret
 
 =item *
 
@@ -183,7 +183,7 @@ password key by itself. (Of course it's much better to not have any weak compone
 B<COMPATIBILITY NOTE:> Most KeePass implementations are limited in the types and numbers of keys they support.
 B<Password> keys are pretty much universally supported. B<File> keys are pretty well-supported. Many do not
 support challenge-response keys. If you are concerned about compatibility, you should stick with one of these
-configurations:
+well-supported configurations:
 
 =over 4
 
@@ -197,7 +197,7 @@ One key file
 
 =item *
 
-One password and one key file
+Composite of one password and one key file
 
 =back
 
@@ -254,8 +254,8 @@ access it, you should memzero or L<File::KDBX::Util/erase> it when you're done.
 
     $key = $key->hide;
 
-Put the raw key in L<File::KDBX/"Memory Protection">. Does nothing if the raw key is already in memory
-protection. Returns itself to allow method chaining.
+Put the raw key in L<memory protection|File::KDBX/"Memory Protection">. Does nothing if the raw key is already
+in memory protection. Returns itself to allow method chaining.
 
 =head2 show
 

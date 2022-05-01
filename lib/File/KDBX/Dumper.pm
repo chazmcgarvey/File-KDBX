@@ -15,7 +15,7 @@ use Ref::Util qw(is_ref is_scalarref);
 use Scalar::Util qw(looks_like_number openhandle);
 use namespace::clean;
 
-our $VERSION = '0.800'; # VERSION
+our $VERSION = '0.900'; # VERSION
 
 
 sub new {
@@ -177,9 +177,6 @@ has 'inner_format',     is => 'ro', default => 'XML';
 has 'allow_upgrade',    is => 'ro', default => 1;
 has 'randomize_seeds',  is => 'ro', default => 1;
 
-
-sub min_version { KDBX_VERSION_OLDEST }
-
 sub _fh { $_[0]->{fh} or throw 'IO handle not set' }
 
 sub _dump {
@@ -236,7 +233,7 @@ sub _write_magic_numbers {
     my $kdbx = $self->kdbx;
 
     $kdbx->sig1 == KDBX_SIG1 or throw 'Invalid file signature', sig1 => $kdbx->sig1;
-    $kdbx->version < $self->min_version || KDBX_VERSION_LATEST < $kdbx->version
+    $kdbx->version < KDBX_VERSION_OLDEST || KDBX_VERSION_LATEST < $kdbx->version
         and throw 'Unsupported file version', version => $kdbx->version;
 
     my @magic = ($kdbx->sig1, $kdbx->sig2, $kdbx->version);
@@ -276,7 +273,7 @@ File::KDBX::Dumper - Write KDBX files
 
 =head1 VERSION
 
-version 0.800
+version 0.900
 
 =head1 ATTRIBUTES
 
@@ -378,7 +375,7 @@ This is called by L</new>.
 
     $dumper = $dumper->reset;
 
-Set a L<File::KDBX::Dumper> to a blank state, ready to dumper another KDBX file.
+Set a L<File::KDBX::Dumper> to a blank state, ready to dump another KDBX file.
 
 =head2 dump
 
@@ -388,7 +385,7 @@ Set a L<File::KDBX::Dumper> to a blank state, ready to dumper another KDBX file.
 
 Dump a KDBX file.
 
-The C<$key> is either a L<File::KDBX::Key> or a primitive that can be converted to a Key object.
+The C<$key> is either a L<File::KDBX::Key> or a primitive that can be cast to a Key object.
 
 =head2 dump_string
 
@@ -408,16 +405,7 @@ Dump a KDBX file to a filesystem.
     $dumper->dump_handle($fh, $key);
     $dumper->dump_handle(*IO, $key);
 
-Dump a KDBX file to an input stream / file handle.
-
-=head2 min_version
-
-    $min_version = File::KDBX::Dumper->min_version;
-
-Get the minimum KDBX file version supported, which is 3.0 or C<0x00030000> as
-it is encoded.
-
-To generate older KDBX files unsupported by this module, try L<File::KeePass>.
+Dump a KDBX file to an output stream / file handle.
 
 =head1 BUGS
 

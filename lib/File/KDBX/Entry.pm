@@ -21,7 +21,7 @@ use namespace::clean;
 
 extends 'File::KDBX::Object';
 
-our $VERSION = '0.800'; # VERSION
+our $VERSION = '0.900'; # VERSION
 
 my $PLACEHOLDER_MAX_DEPTH = 10;
 my %PLACEHOLDERS;
@@ -538,7 +538,7 @@ sub prune_history {
 
     my $max_items = $args{max_items} // eval { $self->kdbx->history_max_items } // HISTORY_DEFAULT_MAX_ITEMS;
     my $max_size  = $args{max_size}  // eval { $self->kdbx->history_max_size }  // HISTORY_DEFAULT_MAX_SIZE;
-    my $max_age   = $args{max_age}   // HISTORY_DEFAULT_MAX_AGE;
+    my $max_age   = $args{max_age}   // eval { $self->kdbx->maintenance_history_days } // HISTORY_DEFAULT_MAX_AGE;
 
     # history is ordered oldest to newest
     my $history = $self->history;
@@ -681,7 +681,7 @@ File::KDBX::Entry - A KDBX database entry
 
 =head1 VERSION
 
-version 0.800
+version 0.900
 
 =head1 DESCRIPTION
 
@@ -960,7 +960,7 @@ This software supports many (but not all) of the placeholders documented there.
 
 =back
 
-If the current date and time is <2012-07-25 17:05:34>, the "simple" form would be C<20120725170534>.
+If the current date and time is C<2012-07-25 17:05:34>, the "simple" form would be C<20120725170534>.
 
 =head3 Special Key Placeholders
 
@@ -1106,7 +1106,7 @@ a placeholder, just set it in the C<%File::KDBX::PLACEHOLDERS> hash. For example
 
 If the placeholder is expanded in the context of an entry, C<$entry> is the B<File::KDBX::Entry> object in
 context. Otherwise it is C<undef>. An entry is in context if, for example, the placeholder is in an entry's
-strings or auto-complete key sequences.
+strings or auto-type key sequences.
 
     $File::KDBX::PLACEHOLDERS{'MY_PLACEHOLDER:'} = sub {
         my ($entry, $arg) = @_;         #    ^ Notice the colon here
@@ -1235,18 +1235,6 @@ Here's a basic example:
 
 =head1 ATTRIBUTES
 
-=head2 uuid
-
-128-bit UUID identifying the entry within the database.
-
-=head2 icon_id
-
-Integer representing a default icon. See L<File::KDBX::Constants/":icon"> for valid values.
-
-=head2 custom_icon_uuid
-
-128-bit UUID identifying a custom icon within the database.
-
 =head2 foreground_color
 
 Text color represented as a string of the form C<#000000>.
@@ -1258,10 +1246,6 @@ Background color represented as a string of the form C<#FFFFFF>.
 =head2 override_url
 
 TODO
-
-=head2 tags
-
-Text string with arbitrary tags which can be used to build a taxonomy.
 
 =head2 auto_type_enabled
 
@@ -1285,10 +1269,6 @@ An array of window title / keystroke sequence associations.
     }
 
 Keystroke sequences can have </Placeholders>, most commonly C<{USERNAME}> and C<{PASSWORD}>.
-
-=head2 previous_parent_group
-
-128-bit UUID identifying a group within the database.
 
 =head2 quality_check
 
@@ -1330,44 +1310,10 @@ characters.
 There are methods available to provide more convenient access to binaries, including L</binary> and
 L</binary_value>.
 
-=head2 custom_data
-
-A set of key-value pairs used to store arbitrary data, usually used by software to keep track of state rather
-than by end users (who typically work with the strings and binaries).
-
 =head2 history
 
 Array of historical entries. Historical entries are prior versions of the same entry so they all share the
 same UUID with the current entry.
-
-=head2 last_modification_time
-
-Date and time when the entry was last modified.
-
-=head2 creation_time
-
-Date and time when the entry was created.
-
-=head2 last_access_time
-
-Date and time when the entry was last accessed.
-
-=head2 expiry_time
-
-Date and time when the entry expired or will expire.
-
-=head2 expires
-
-Boolean value indicating whether or not an entry is expired.
-
-=head2 usage_count
-
-The number of times an entry has been used, which typically means how many times the B<Password> string has
-been accessed.
-
-=head2 location_changed
-
-Date and time when the entry was last moved to a different parent group.
 
 =head2 notes
 

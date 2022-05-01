@@ -11,7 +11,7 @@ use namespace::clean;
 
 extends 'File::KDBX::IO';
 
-our $VERSION = '0.800'; # VERSION
+our $VERSION = '0.900'; # VERSION
 our $BUFFER_SIZE = 16384;
 our $ERROR;
 
@@ -139,7 +139,7 @@ File::KDBX::IO::Crypt - Encrypter/decrypter IO handle
 
 =head1 VERSION
 
-version 0.800
+version 0.900
 
 =head1 SYNOPSIS
 

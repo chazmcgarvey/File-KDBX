@@ -9,7 +9,7 @@ use namespace::clean;
 
 extends 'File::KDBX::Dumper';
 
-our $VERSION = '0.800'; # VERSION
+our $VERSION = '0.900'; # VERSION
 
 sub _dump {
     my $self = shift;
@@ -48,7 +48,7 @@ File::KDBX::Dumper::Raw - A no-op dumper that dumps content as-is
 
 =head1 VERSION
 
-version 0.800
+version 0.900
 
 =head1 SYNOPSIS
 

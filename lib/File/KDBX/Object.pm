@@ -14,7 +14,7 @@ use Ref::Util qw(is_arrayref is_plain_arrayref is_plain_hashref is_ref);
 use Scalar::Util qw(blessed weaken);
 use namespace::clean;
 
-our $VERSION = '0.800'; # VERSION
+our $VERSION = '0.900'; # VERSION
 
 fieldhashes \my (%KDBX, %PARENT, %TXNS, %REFS, %SIGNALS);
 
@@ -526,7 +526,7 @@ File::KDBX::Object - A KDBX database object
 
 =head1 VERSION
 
-version 0.800
+version 0.900
 
 =head1 DESCRIPTION
 
@@ -608,7 +608,58 @@ Instead, do this:
     $kdbx = $object->kdbx;
     $object->kdbx($kdbx);
 
-Get or set the L<File::KDBX> instance connected with this object.
+Get or set the L<File::KDBX> instance connected with this object. Throws if the object is disconnected. Other
+object methods might only work if the object is connected to a database and so they might also throw if the
+object is disconnected. If you're not sure if an object is connected, try L</is_connected>.
+
+=head2 uuid
+
+128-bit UUID identifying the object within the connected database.
+
+=head2 icon_id
+
+Integer representing a default icon. See L<File::KDBX::Constants/":icon"> for valid values.
+
+=head2 custom_icon_uuid
+
+128-bit UUID identifying a custom icon within the connected database.
+
+=head2 tags
+
+Text string with arbitrary tags which can be used to build a taxonomy.
+
+=head2 previous_parent_group
+
+128-bit UUID identifying a group within the connected database the previously contained the object.
+
+=head2 last_modification_time
+
+Date and time when the entry was last modified.
+
+=head2 creation_time
+
+Date and time when the entry was created.
+
+=head2 last_access_time
+
+Date and time when the entry was last accessed.
+
+=head2 expiry_time
+
+Date and time when the entry expired or will expire.
+
+=head2 expires
+
+Boolean value indicating whether or not an entry is expired.
+
+=head2 usage_count
+
+The number of times an entry has been used, which typically means how many times the B<Password> string has
+been accessed.
+
+=head2 location_changed
+
+Date and time when the entry was last moved to a different parent group.
 
 =head1 METHODS
 
@@ -753,7 +804,7 @@ structure. Returns an empty arrayref is the object itself is a root group.
     $object = $object->remove(%options);
 
 Remove an object from its parent. If the object is a group, all contained objects stay with the object and so
-are removed as well. Options:
+are removed as well, just like cutting off a branch takes the leafs as well. Options:
 
 =over 4
 
@@ -820,7 +871,9 @@ C<last_modification_time> - Just what it says (datetime)
     $object->custom_data(%data);
     $object->custom_data(key => $value, %data);
 
-Get and set custom data. Custom data is metadata associated with an object.
+Get and set custom data. Custom data is metadata associated with an object. It is a set of key-value pairs
+used to store arbitrary data, usually used by software like plug-ins to keep track of state rather than by end
+users.
 
 Each data item can have a few attributes associated with it.
 

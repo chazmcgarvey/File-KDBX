@@ -17,7 +17,7 @@ use namespace::clean;
 
 extends 'File::KDBX::Key';
 
-our $VERSION = '0.800'; # VERSION
+our $VERSION = '0.900'; # VERSION
 
 
 has 'type',     is => 'ro';
@@ -256,7 +256,7 @@ File::KDBX::Key::File - A file key
 
 =head1 VERSION
 
-version 0.800
+version 0.900
 
 =head1 SYNOPSIS
 
@@ -297,7 +297,7 @@ There are multiple types of key files supported. See L</type>. This module can r
 
     $type = $key->type;
 
-Get the type of key file. Can be one of:
+Get the type of key file. Can be one of from L<File::KDBX::Constants/":key_file">:
 
 =over 4
 

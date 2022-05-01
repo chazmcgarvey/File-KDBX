@@ -14,7 +14,7 @@ use namespace::clean;
 
 extends 'IO::Handle';
 
-our $VERSION = '0.800'; # VERSION
+our $VERSION = '0.900'; # VERSION
 
 sub _croak { require Carp; goto &Carp::croak }
 
@@ -390,7 +390,7 @@ File::KDBX::IO - Base IO class for KDBX-related streams
 
 =head1 VERSION
 
-version 0.800
+version 0.900
 
 =head1 DESCRIPTION
 

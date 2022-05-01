@@ -19,7 +19,7 @@ use Time::Piece;
 use boolean;
 use namespace::clean;
 
-our $VERSION = '0.800'; # VERSION
+our $VERSION = '0.900'; # VERSION
 our $WARNINGS = 1;
 
 fieldhashes \my (%SAFE, %KEYS);
@@ -170,7 +170,7 @@ has 'meta.database_description'             => '',                          coer
 has 'meta.database_description_changed'     => sub { gmtime },              coerce => \&to_time;
 has 'meta.default_username'                 => '',                          coerce => \&to_string;
 has 'meta.default_username_changed'         => sub { gmtime },              coerce => \&to_time;
-has 'meta.maintenance_history_days'         => 0,                           coerce => \&to_number;
+has 'meta.maintenance_history_days'         => HISTORY_DEFAULT_MAX_AGE,     coerce => \&to_number;
 has 'meta.color'                            => '',                          coerce => \&to_string;
 has 'meta.master_key_changed'               => sub { gmtime },              coerce => \&to_time;
 has 'meta.master_key_change_rec'            => -1,                          coerce => \&to_number;
@@ -399,7 +399,7 @@ sub add_group {
     my %args    = @_;
 
     # find the right group to add the group to
-    my $parent = delete $args{group} // delete $args{parent} // $self->root;
+    my $parent = delete $args{group} // $self->root;
     $parent = $self->groups->grep({uuid => $parent})->next if !ref $parent;
     $parent or throw 'Invalid group';
 
@@ -431,7 +431,7 @@ sub add_entry {
     my %args    = @_;
 
     # find the right group to add the entry to
-    my $parent = delete $args{group} // delete $args{parent} // $self->root;
+    my $parent = delete $args{group} // $self->root;
     $parent = $self->groups->grep({uuid => $parent})->next if !ref $parent;
     $parent or throw 'Invalid group';
 
@@ -875,7 +875,7 @@ sub prune_history {
 
     my $max_items = $args{max_items} // $self->history_max_items // HISTORY_DEFAULT_MAX_ITEMS;
     my $max_size  = $args{max_size}  // $self->history_max_size  // HISTORY_DEFAULT_MAX_SIZE;
-    my $max_age   = $args{max_age}   // HISTORY_DEFAULT_MAX_AGE;
+    my $max_age   = $args{max_age}   // $self->maintenance_history_days // HISTORY_DEFAULT_MAX_AGE;
 
     my @removed;
     $self->entries->each(sub {
@@ -1120,7 +1120,7 @@ File::KDBX - Encrypted database to store secret text and files
 
 =head1 VERSION
 
-version 0.800
+version 0.900
 
 =head1 SYNOPSIS
 
@@ -1150,14 +1150,14 @@ See L</RECIPES> for more examples.
 
 =head1 DESCRIPTION
 
-B<File::KDBX> provides everything you need to work with a KDBX database. A KDBX database is a hierarchical
+B<File::KDBX> provides everything you need to work with KDBX databases. A KDBX database is a hierarchical
 object database which is commonly used to store secret information securely. It was developed for the KeePass
 password safe. See L</"Introduction to KDBX"> for more information about KDBX.
 
-This module lets you query entries, create new entries, delete entries and modify entries. The distribution
-also includes various parsers and generators for serializing and persisting databases.
+This module lets you query entries, create new entries, delete entries, modify entries and more. The
+distribution also includes various parsers and generators for serializing and persisting databases.
 
-This design of this software was influenced by the L<KeePassXC|https://github.com/keepassxreboot/keepassxc>
+The design of this software was influenced by the L<KeePassXC|https://github.com/keepassxreboot/keepassxc>
 implementation of KeePass as well as the L<File::KeePass> module. B<File::KeePass> is an alternative module
 that works well in most cases but has a small backlog of bugs and security issues and also does not work with
 newer KDBX version 4 files. If you're coming here from the B<File::KeePass> world, you might be interested in
@@ -1167,8 +1167,6 @@ This software is a B<pre-1.0 release>. The interface should be considered pretty
 minor changes up until a 1.0 release. Breaking changes will be noted in the F<Changes> file.
 
 =head2 Features
-
-This implementation of KDBX supports a lot of features:
 
 =over 4
 
@@ -1194,7 +1192,7 @@ This implementation of KDBX supports a lot of features:
 
 =item *
 
-☑ L<One-time passwords|File::KDBX::Entry/"One-time passwords">
+☑ L<One-time passwords|File::KDBX::Entry/"One-time Passwords">
 
 =item *
 
@@ -1240,7 +1238,7 @@ associated with each entry, group and the database as a whole.
 You can think of a KDBX database kind of like a file system, where groups are directories, entries are files,
 and strings and binaries make up a file's contents.
 
-Databases are typically persisted as a encrypted, compressed files. They are usually accessed directly (i.e.
+Databases are typically persisted as encrypted, compressed files. They are usually accessed directly (i.e.
 not over a network). The primary focus of this type of database is data security. It is ideal for storing
 relatively small amounts of data (strings and binaries) that must remain secret except to such individuals as
 have the correct I<master key>. Even if the database file were to be "leaked" to the public Internet, it
@@ -1368,10 +1366,6 @@ When a new entry is created, the I<UserName> string will be populated with this 
 
 Timestamp indicating when the default username was last changed.
 
-=head2 maintenance_history_days
-
-TODO... not really sure what this is. 😀
-
 =head2 color
 
 A color associated with the database (in the form C<#ffffff> where "f" is a hexidecimal digit). Some agents
@@ -1408,7 +1402,7 @@ The UUID of a group used to store thrown-away groups and entries.
 
 =head2 recycle_bin_changed
 
-Timestamp indicating when the recycle bin was last changed.
+Timestamp indicating when the recycle bin group was last changed.
 
 =head2 entry_templates_group
 
@@ -1428,11 +1422,15 @@ The UUID of the group visible at the top of the list.
 
 =head2 history_max_items
 
-The maximum number of historical entries allowed to be saved for each entry.
+The maximum number of historical entries that should be kept for each entry. Default is 10.
 
 =head2 history_max_size
 
-The maximum total size (in bytes) that each individual entry's history is allowed to grow.
+The maximum total size (in bytes) that each individual entry's history is allowed to grow. Default is 6 MiB.
+
+=head2 maintenance_history_days
+
+The maximum age (in days) historical entries should be kept. Default it 365.
 
 =head2 settings_changed
 
@@ -1590,8 +1588,9 @@ because it autovivifies when adding entries and groups to the database.
 Every database has only a single root group at a time. Some old KDB files might have multiple root groups.
 When reading such files, a single implicit root group is created to contain the actual root groups. When
 writing to such a format, if the root group looks like it was implicitly created then it won't be written and
-the resulting file might have multiple root groups. This allows working with older files without changing
-their written internal structure while still adhering to modern semantics while the database is opened.
+the resulting file might have multiple root groups, as it was before loading. This allows working with older
+files without changing their written internal structure while still adhering to modern semantics while the
+database is opened.
 
 The root group of a KDBX database contains all of the database's entries and other groups. If you replace the
 root group, you are essentially replacing the entire database contents with something else.
@@ -1648,7 +1647,7 @@ L<File::KDBX::Group/add_group> on the parent group, forwarding the arguments. Av
 
 =item *
 
-C<group> (aka C<parent>) - Group object or group UUID to add the group to (default: root group)
+C<group> - Group object or group UUID to add the group to (default: root group)
 
 =back
 
@@ -1687,7 +1686,7 @@ L<File::KDBX::Group/add_entry> on the parent group, forwarding the arguments. Av
 
 =item *
 
-C<group> (aka C<parent>) - Group object or group UUID to add the entry to (default: root group)
+C<group> - Group object or group UUID to add the entry to (default: root group)
 
 =back
 
@@ -2054,7 +2053,8 @@ You normally do not need to call this method explicitly because the dumper does 
     $key = $kdbx->key($primitive);
 
 Get or set a L<File::KDBX::Key>. This is the master key (e.g. a password or a key file that can decrypt
-a database). See L<File::KDBX::Key/new> for an explanation of what the primitive can be.
+a database). You can also pass a primitive that can be cast to a B<Key>. See L<File::KDBX::Key/new> for an
+explanation of what the primitive can be.
 
 You generally don't need to call this directly because you can provide the key directly to the loader or
 dumper when loading or dumping a KDBX file.
@@ -2064,10 +2064,11 @@ dumper when loading or dumping a KDBX file.
     $key = $kdbx->composite_key($key);
     $key = $kdbx->composite_key($primitive);
 
-Construct a L<File::KDBX::Key::Composite> from a primitive. See L<File::KDBX::Key/new> for an explanation of
-what the primitive can be. If the primitive does not represent a composite key, it will be wrapped.
+Construct a L<File::KDBX::Key::Composite> from a B<Key> or primitive. See L<File::KDBX::Key/new> for an
+explanation of what the primitive can be. If the primitive does not represent a composite key, it will be
+wrapped.
 
-You generally don't need to call this directly. The parser and writer use it to transform a master key into
+You generally don't need to call this directly. The loader and dumper use it to transform a master key into
 a raw encryption key.
 
 =head2 kdf
@@ -2100,7 +2101,7 @@ cipher), not a L<File::KDBX::Key> or primitive.
 If not passed, the UUID comes from C<< $kdbx->headers->{cipher_id} >> and the encryption IV comes from
 C<< $kdbx->headers->{encryption_iv} >>.
 
-You generally don't need to call this directly. The parser and writer use it to decrypt and encrypt KDBX
+You generally don't need to call this directly. The loader and dumper use it to decrypt and encrypt KDBX
 files.
 
 =head2 random_stream
@@ -2115,7 +2116,7 @@ C<< $kdbx->headers->{inner_random_stream_key} >> (respectively) for KDBX3 files 
 C<< $kdbx->inner_headers->{inner_random_stream_key} >> and
 C<< $kdbx->inner_headers->{inner_random_stream_id} >> (respectively) for KDBX4 files.
 
-You generally don't need to call this directly. The parser and writer use it to scramble protected strings.
+You generally don't need to call this directly. The loader and dumper use it to scramble protected strings.
 
 =for Pod::Coverage STORABLE_freeze STORABLE_thaw TO_JSON
 
@@ -2331,9 +2332,9 @@ unfortunately not portable.
 To find things in a KDBX database, you should use a filtered iterator. If you have an iterator, such as
 returned by L</entries>, L</groups> or even L</objects> you can filter it using L<File::KDBX::Iterator/where>.
 
-    my $filtered_entries = $kdbx->entries->where($query);
+    my $filtered_entries = $kdbx->entries->where(\&query);
 
-A C<$query> is just a subroutine that you can either write yourself or have generated for you from either
+A C<\&query> is just a subroutine that you can either write yourself or have generated for you from either
 a L</"Simple Expression"> or L</"Declarative Syntax">. It's easier to have your query generated, so I'll cover
 that first.
 
@@ -2474,7 +2475,7 @@ C<< < >> - Number less than
 
 =item *
 
-C<< > >>> - Number greater than
+C<< > >> - Number greater than
 
 =item *
 
@@ -2663,17 +2664,45 @@ If you have a database tree like this:
         - Group3
             - EntryC
 
+=over 4
+
+=item *
+
 IDS order of groups is: Root, Group1, Group2, Group3
+
+=item *
+
 IDS order of entries is: EntryA, EntryB, EntryC
+
+=item *
+
 IDS order of objects is: Root, Group1, EntryA, Group2, EntryB, Group3, EntryC
 
+=item *
+
 DFS order of groups is: Group2, Group1, Group3, Root
+
+=item *
+
 DFS order of entries is: EntryB, EntryA, EntryC
+
+=item *
+
 DFS order of objects is: Group2, EntryB, Group1, EntryA, Group3, EntryC, Root
 
+=item *
+
 BFS order of groups is: Root, Group1, Group3, Group2
+
+=item *
+
 BFS order of entries is: EntryA, EntryC, EntryB
+
+=item *
+
 BFS order of objects is: Root, Group1, EntryA, Group3, EntryC, Group2, EntryB
+
+=back
 
 =head1 SYNCHRONIZING
 

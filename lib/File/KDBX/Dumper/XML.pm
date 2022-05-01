@@ -19,7 +19,7 @@ use namespace::clean;
 
 extends 'File::KDBX::Dumper';
 
-our $VERSION = '0.800'; # VERSION
+our $VERSION = '0.900'; # VERSION
 
 
 has allow_protection => 1;
@@ -564,7 +564,7 @@ File::KDBX::Dumper::XML - Dump unencrypted XML KeePass files
 
 =head1 VERSION
 
-version 0.800
+version 0.900
 
 =head1 ATTRIBUTES
 
@@ -620,8 +620,8 @@ the authenticity of header data. This is unnecessary and should not be used with
 format uses HMAC-SHA256 to detect tampering.
 
 L<File::KDBX::Dumper::V3> automatically calculates the header hash an provides it to this module, and plain
-XML files which don't have a KDBX wrapper don't have headers and so should have a header hash. Therefore there
-is probably never any reason to set this manually.
+XML files which don't have a KDBX wrapper don't have headers and so should not have a header hash. Therefore
+there is probably never any reason to set this manually.
 
 =head1 BUGS
 

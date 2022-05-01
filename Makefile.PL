@@ -34,7 +34,6 @@ my %WriteMakefileArgs = (
     "IO::Handle" => 0,
     "IPC::Cmd" => "0.52",
     "Iterator::Simple" => 0,
-    "Iterator::Simple::Iterator" => 0,
     "List::Util" => "1.33",
     "Module::Load" => 0,
     "Module::Loaded" => 0,
@@ -68,7 +67,7 @@ my %WriteMakefileArgs = (
     "lib" => 0,
     "utf8" => 0
   },
-  "VERSION" => "0.800",
+  "VERSION" => "0.900",
   "test" => {
     "TESTS" => "t/*.t"
   }
@@ -98,7 +97,6 @@ my %FallbackPrereqs = (
   "IPC::Cmd" => "0.52",
   "IPC::Open3" => 0,
   "Iterator::Simple" => 0,
-  "Iterator::Simple::Iterator" => 0,
   "List::Util" => "1.33",
   "Module::Load" => 0,
   "Module::Loaded" => 0,

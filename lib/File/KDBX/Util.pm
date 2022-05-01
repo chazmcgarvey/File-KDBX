@@ -17,7 +17,7 @@ use Time::Piece;
 use boolean;
 use namespace::clean -except => 'import';
 
-our $VERSION = '0.800'; # VERSION
+our $VERSION = '0.900'; # VERSION
 
 our %EXPORT_TAGS = (
     assert      => [qw(DEBUG assert assert_64bit)],
@@ -803,7 +803,7 @@ File::KDBX::Util - Utility functions for working with KDBX files
 
 =head1 VERSION
 
-version 0.800
+version 0.900
 
 =head1 FUNCTIONS
 
@@ -1043,7 +1043,7 @@ The logic can be specified in a manner similar to L<SQL::Abstract/"WHERE CLAUSES
 for this function, but this code is distinct, supporting an overlapping but not identical feature set and
 having its own bugs.
 
-See L<File::KDBX/QUERY> for examples.
+See L<File::KDBX/"Declarative Syntax"> for examples.
 
 =head2 query_any
 

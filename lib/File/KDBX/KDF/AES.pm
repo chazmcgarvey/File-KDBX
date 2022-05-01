@@ -13,7 +13,7 @@ use namespace::clean;
 
 extends 'File::KDBX::KDF';
 
-our $VERSION = '0.800'; # VERSION
+our $VERSION = '0.900'; # VERSION
 
 # Rounds higher than this are eligible for forking:
 my $FORK_OPTIMIZATION_THRESHOLD = 100_000;
@@ -111,7 +111,7 @@ File::KDBX::KDF::AES - Using the AES cipher as a key derivation function
 
 =head1 VERSION
 
-version 0.800
+version 0.900
 
 =head1 DESCRIPTION
 

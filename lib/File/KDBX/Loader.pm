@@ -14,7 +14,7 @@ use Ref::Util qw(is_ref is_scalarref);
 use Scalar::Util qw(looks_like_number openhandle);
 use namespace::clean;
 
-our $VERSION = '0.800'; # VERSION
+our $VERSION = '0.900'; # VERSION
 
 
 sub new {
@@ -146,9 +146,6 @@ has format          => undef, is => 'ro';
 has inner_format    => 'XML', is => 'ro';
 
 
-sub min_version { KDBX_VERSION_OLDEST }
-
-
 sub read_magic_numbers {
     my $self = shift;
     my $fh   = shift;
@@ -252,7 +249,7 @@ File::KDBX::Loader - Load KDBX files
 
 =head1 VERSION
 
-version 0.800
+version 0.900
 
 =head1 DESCRIPTION
 
@@ -308,7 +305,7 @@ C<XML> - Read the database groups and entries as XML (default)
 
 =item *
 
-C<Raw> - Read parsing and store the result in L<File::KDBX/raw>
+C<Raw> - Read and store the result in L<File::KDBX/raw> without parsing
 
 =back
 
@@ -343,7 +340,7 @@ Set a L<File::KDBX::Loader> to a blank state, ready to load another KDBX file.
 
 Load a KDBX file.
 
-The C<$key> is either a L<File::KDBX::Key> or a primitive that can be converted to a Key object.
+The C<$key> is either a L<File::KDBX::Key> or a primitive that can be cast to a Key object.
 
 =head2 load_string
 
@@ -367,15 +364,6 @@ Read a KDBX file from a filesystem.
     $kdbx->load_handle(...); # also instance method
 
 Read a KDBX file from an input stream / file handle.
-
-=head2 min_version
-
-    $min_version = File::KDBX::Loader->min_version;
-
-Get the minimum KDBX file version supported, which is 3.0 or C<0x00030000> as
-it is encoded.
-
-To read older KDBX files unsupported by this module, try L<File::KeePass>.
 
 =head2 read_magic_numbers
 

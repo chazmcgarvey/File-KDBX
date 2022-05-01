@@ -19,7 +19,7 @@ use namespace::clean;
 
 extends 'File::KDBX::Object';
 
-our $VERSION = '0.800'; # VERSION
+our $VERSION = '0.900'; # VERSION
 
 
 # has uuid                        => sub { generate_uuid(printable => 1) };
@@ -398,7 +398,7 @@ File::KDBX::Group - A KDBX database group
 
 =head1 VERSION
 
-version 0.800
+version 0.900
 
 =head1 DESCRIPTION
 
@@ -410,10 +410,6 @@ the attributes to see what's available.
 
 =head1 ATTRIBUTES
 
-=head2 uuid
-
-128-bit UUID identifying the group within the database.
-
 =head2 name
 
 The human-readable name of the group.
@@ -421,18 +417,6 @@ The human-readable name of the group.
 =head2 notes
 
 Free form text string associated with the group.
-
-=head2 tags
-
-Text string with arbitrary tags which can be used to build a taxonomy.
-
-=head2 icon_id
-
-Integer representing a default icon. See L<File::KDBX::Constants/":icon"> for valid values.
-
-=head2 custom_icon_uuid
-
-128-bit UUID identifying a custom icon within the database.
 
 =head2 is_expanded
 
@@ -454,15 +438,6 @@ Whether or not entries within the group can show up in search results, inheritab
 
 The UUID of the entry visible at the top of the list.
 
-=head2 custom_data
-
-A set of key-value pairs used to store arbitrary data, usually used by software to keep track of state rather
-than by end users (who typically work with the strings and binaries).
-
-=head2 previous_parent_group
-
-128-bit UUID identifying a group within the database.
-
 =head2 entries
 
 Array of entries contained within the group.
@@ -471,41 +446,13 @@ Array of entries contained within the group.
 
 Array of subgroups contained within the group.
 
-=head2 last_modification_time
-
-Date and time when the entry was last modified.
-
-=head2 creation_time
-
-Date and time when the entry was created.
-
-=head2 last_access_time
-
-Date and time when the entry was last accessed.
-
-=head2 expiry_time
-
-Date and time when the entry expired or will expire.
-
-=head2 expires
-
-Boolean value indicating whether or not an entry is expired.
-
-=head2 usage_count
-
-TODO
-
-=head2 location_changed
-
-Date and time when the entry was last moved to a different parent group.
-
 =head1 METHODS
 
 =head2 entries
 
     \@entries = $group->entries;
 
-Get an array of direct entries within a group.
+Get an array of direct child entries within a group.
 
 =head2 entries_deeply
 
@@ -651,7 +598,7 @@ Get whether or not a group is the recycle bin of its connected database.
 
     $bool = $group->is_entry_templates;
 
-Get whether or not a group is the group containing entry template of its connected database.
+Get whether or not a group is the group containing entry template in its connected database.
 
 =head2 is_last_selected
 
