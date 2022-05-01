@@ -1,5 +1,5 @@
 package File::KDBX::Iterator;
-# PACKAGE: KDBX database iterator
+# ABSTRACT: KDBX database iterator
 
 use warnings;
 use strict;
