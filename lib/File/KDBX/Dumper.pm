@@ -15,7 +15,7 @@ use Ref::Util qw(is_ref is_scalarref);
 use Scalar::Util qw(looks_like_number openhandle);
 use namespace::clean;
 
-our $VERSION = '0.900'; # VERSION
+our $VERSION = '0.901'; # VERSION
 
 
 sub new {
@@ -118,16 +118,27 @@ sub dump_file {
     my $filepath = shift;
     my %args     = @_ % 2 == 0 ? @_ : (key => shift, @_);
 
-    my $key = delete $args{key};
+    my $key     = delete $args{key};
+    my $mode    = delete $args{mode};
+    my $uid     = delete $args{uid};
+    my $gid     = delete $args{gid};
+    my $atomic  = delete $args{atomic} // 1;
+
     $args{kdbx} //= $self->kdbx;
 
-    require File::Temp;
-    my ($fh, $filepath_temp) = eval { File::Temp::tempfile("${filepath}-XXXXXX", CLEANUP => 1) };
-    if (!$fh or my $err = $@) {
-        $err //= 'Unknown error';
-        throw sprintf('Open file failed (%s): %s', $filepath_temp, $err),
-            error       => $err,
-            filepath    => $filepath_temp;
+    my ($fh, $filepath_temp);
+    if ($atomic) {
+        require File::Temp;
+        ($fh, $filepath_temp) = eval { File::Temp::tempfile("${filepath}-XXXXXX", UNLINK => 1) };
+        if (!$fh or my $err = $@) {
+            $err //= 'Unknown error';
+            throw sprintf('Open file failed (%s): %s', $filepath_temp, $err),
+                error       => $err,
+                filepath    => $filepath_temp;
+        }
+    }
+    else {
+        open($fh, '>:raw', $filepath) or throw "Open file failed ($filepath): $!", filepath => $filepath;
     }
     $fh->autoflush(1);
 
@@ -138,12 +149,15 @@ sub dump_file {
 
     my ($file_mode, $file_uid, $file_gid) = (stat($filepath))[2, 4, 5];
 
-    my $mode = $args{mode} // $file_mode // do { my $m = umask; defined $m ? oct(666) &~ $m : undef };
-    my $uid  = $args{uid}  // $file_uid  // -1;
-    my $gid  = $args{gid}  // $file_gid  // -1;
-    chmod($mode, $filepath_temp) if defined $mode;
-    chown($uid, $gid, $filepath_temp);
-    rename($filepath_temp, $filepath) or throw "Failed to write file ($filepath): $!", filepath => $filepath;
+    if ($filepath_temp) {
+        $mode //= $file_mode // do { my $m = umask; defined $m ? oct(666) &~ $m : undef };
+        $uid  //= $file_uid  // -1;
+        $gid  //= $file_gid  // -1;
+        chmod($mode, $filepath_temp) if defined $mode;
+        chown($uid, $gid, $filepath_temp);
+        rename($filepath_temp, $filepath) or throw "Failed to write file ($filepath): $!",
+            filepath => $filepath;
+    }
 
     return $self;
 }
@@ -273,7 +287,7 @@ File::KDBX::Dumper - Write KDBX files
 
 =head1 VERSION
 
-version 0.900
+version 0.901
 
 =head1 ATTRIBUTES
 
@@ -379,33 +393,108 @@ Set a L<File::KDBX::Dumper> to a blank state, ready to dump another KDBX file.
 
 =head2 dump
 
-    $dumper->dump(\$string, $key);
-    $dumper->dump(*IO, $key);
-    $dumper->dump($filepath, $key);
+    $dumper->dump(\$string, %options);
+    $dumper->dump(\$string, $key, %options);
+    $dumper->dump(*IO, %options);
+    $dumper->dump(*IO, $key, %options);
+    $dumper->dump($filepath, %options);
+    $dumper->dump($filepath, $key, %options);
 
 Dump a KDBX file.
 
-The C<$key> is either a L<File::KDBX::Key> or a primitive that can be cast to a Key object.
+The C<$key> is either a L<File::KDBX::Key> or a primitive castable to a Key object. Available options:
+
+=over 4
+
+=item *
+
+C<kdbx> - Database to dump (default: value of L</kdbx>)
+
+=item *
+
+C<key> - Alternative way to specify C<$key> (default: value of L</File::KDBX/key>)
+
+=back
+
+Other options are supported depending on the first argument. See L</dump_string>, L</dump_file> and
+L</dump_handle>.
 
 =head2 dump_string
 
-    $dumper->dump_string(\$string, $key);
-    \$string = $dumper->dump_string($key);
+    $dumper->dump_string(\$string, %options);
+    $dumper->dump_string(\$string, $key, %options);
+    \$string = $dumper->dump_string(%options);
+    \$string = $dumper->dump_string($key, %options);
 
-Dump a KDBX file to a string / memory buffer.
+Dump a KDBX file to a string / memory buffer. Available options:
+
+=over 4
+
+=item *
+
+C<kdbx> - Database to dump (default: value of L</kdbx>)
+
+=item *
+
+C<key> - Alternative way to specify C<$key> (default: value of L</File::KDBX/key>)
+
+=back
 
 =head2 dump_file
 
-    $dumper->dump_file($filepath, $key);
+    $dumper->dump_file($filepath, %options);
+    $dumper->dump_file($filepath, $key, %options);
 
-Dump a KDBX file to a filesystem.
+Dump a KDBX file to a filesystem. Available options:
+
+=over 4
+
+=item *
+
+C<kdbx> - Database to dump (default: value of L</kdbx>)
+
+=item *
+
+C<key> - Alternative way to specify C<$key> (default: value of L</File::KDBX/key>)
+
+=item *
+
+C<mode> - File mode / permissions (see L<perlfunc/"chmod LIST">
+
+=item *
+
+C<uid> - User ID (see L<perlfunc/"chown LIST">)
+
+=item *
+
+C<gid> - Group ID (see L<perlfunc/"chown LIST">)
+
+=item *
+
+C<atomic> - Write to the filepath atomically (default: true)
+
+=back
 
 =head2 dump_handle
 
-    $dumper->dump_handle($fh, $key);
-    $dumper->dump_handle(*IO, $key);
+    $dumper->dump_handle($fh, %options);
+    $dumper->dump_handle(*IO, $key, %options);
+    $dumper->dump_handle($fh, %options);
+    $dumper->dump_handle(*IO, $key, %options);
 
-Dump a KDBX file to an output stream / file handle.
+Dump a KDBX file to an output stream / file handle. Available options:
+
+=over 4
+
+=item *
+
+C<kdbx> - Database to dump (default: value of L</kdbx>)
+
+=item *
+
+C<key> - Alternative way to specify C<$key> (default: value of L</File::KDBX/key>)
+
+=back
 
 =head1 BUGS
 

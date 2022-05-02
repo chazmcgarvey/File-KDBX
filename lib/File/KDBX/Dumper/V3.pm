@@ -16,7 +16,7 @@ use namespace::clean;
 
 extends 'File::KDBX::Dumper';
 
-our $VERSION = '0.900'; # VERSION
+our $VERSION = '0.901'; # VERSION
 
 sub _write_headers {
     my $self = shift;
@@ -189,7 +189,7 @@ File::KDBX::Dumper::V3 - Dump KDBX3 files
 
 =head1 VERSION
 
-version 0.900
+version 0.901
 
 =head1 BUGS
 

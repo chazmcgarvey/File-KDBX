@@ -27,7 +27,7 @@ use namespace::clean;
 
 extends 'File::KDBX::Loader';
 
-our $VERSION = '0.900'; # VERSION
+our $VERSION = '0.901'; # VERSION
 
 sub _read_header {
     my $self = shift;
@@ -175,7 +175,7 @@ File::KDBX::Loader::V3 - Load KDBX3 files
 
 =head1 VERSION
 
-version 0.900
+version 0.901
 
 =head1 BUGS
 

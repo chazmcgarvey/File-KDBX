@@ -4,7 +4,7 @@ NAME
 
 VERSION
 
-    version 0.900
+    version 0.901
 
 SYNOPSIS
 
@@ -784,12 +784,12 @@ METHODS
 
         $kdbx->lock;
 
-    Encrypt all protected binaries strings in a database. The encrypted
-    strings are stored in a File::KDBX::Safe associated with the database
-    and the actual strings will be replaced with undef to indicate their
+    Encrypt all protected strings and binaries in a database. The encrypted
+    data is stored in a File::KDBX::Safe associated with the database and
+    the actual values will be replaced with undef to indicate their
     protected state. Returns itself to allow method chaining.
 
-    You can call code on an already-locked database to memory-protect any
+    You can call lock on an already-locked database to memory-protect any
     unprotected strings and binaries added after the last time the database
     was locked.
 
@@ -797,9 +797,9 @@ METHODS
 
         $kdbx->unlock;
 
-    Decrypt all protected strings in a database, replacing undef
-    placeholders with unprotected values. Returns itself to allow method
-    chaining.
+    Decrypt all protected strings and binaries in a database, replacing
+    undef value placeholders with their actual, unprotected values. Returns
+    itself to allow method chaining.
 
  unlock_scoped
 
@@ -810,6 +810,14 @@ METHODS
     already unlocked.
 
     See "lock" and "unlock".
+
+    Example:
+
+        {
+            my $guard = $kdbx->unlock_scoped;
+            ...;
+        }
+        # $kdbx is now memory-locked
 
  peek
 
@@ -825,10 +833,10 @@ METHODS
 
         $bool = $kdbx->is_locked;
 
-    Get whether or not a database's strings are memory-protected. If this
-    is true, then some or all of the protected strings within the database
-    will be unavailable (literally have undef values) until "unlock" is
-    called.
+    Get whether or not a database's contents are in a locked (i.e.
+    memory-protected) state. If this is true, then some or all of the
+    protected strings and binaries within the database will be unavailable
+    (literally have undef values) until "unlock" is called.
 
  remove_empty_groups
 
@@ -896,8 +904,8 @@ METHODS
 
     Get or set a File::KDBX::Key. This is the master key (e.g. a password
     or a key file that can decrypt a database). You can also pass a
-    primitive that can be cast to a Key. See "new" in File::KDBX::Key for
-    an explanation of what the primitive can be.
+    primitive castable to a Key. See "new" in File::KDBX::Key for an
+    explanation of what the primitive can be.
 
     You generally don't need to call this directly because you can provide
     the key directly to the loader or dumper when loading or dumping a KDBX
@@ -1500,14 +1508,14 @@ ERRORS
 
     Errors in this package are constructed as File::KDBX::Error objects and
     propagated using perl's built-in mechanisms. Fatal errors are
-    propagated using "die" in functions and non-fatal errors (a.k.a.
-    warnings) are propagated using "warn" in functions while adhering to
-    perl's warnings system. If you're already familiar with these
+    propagated using "die LIST" in perlfunc and non-fatal errors (a.k.a.
+    warnings) are propagated using "warn LIST" in perlfunc while adhering
+    to perl's warnings system. If you're already familiar with these
     mechanisms, you can skip this section.
 
-    You can catch fatal errors using "eval" in functions (or something like
-    Try::Tiny) and non-fatal errors using $SIG{__WARN__} (see "%SIG" in
-    variables). Examples:
+    You can catch fatal errors using "eval BLOCK" in perlfunc (or something
+    like Try::Tiny) and non-fatal errors using $SIG{__WARN__} (see "%SIG"
+    in perlvar). Examples:
 
         use File::KDBX::Error qw(error);
     

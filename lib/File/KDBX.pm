@@ -19,7 +19,7 @@ use Time::Piece;
 use boolean;
 use namespace::clean;
 
-our $VERSION = '0.900'; # VERSION
+our $VERSION = '0.901'; # VERSION
 our $WARNINGS = 1;
 
 fieldhashes \my (%SAFE, %KEYS);
@@ -796,7 +796,7 @@ sub peek {
 }
 
 
-sub is_locked { $_[0]->_safe ? 1 : 0 }
+sub is_locked { !!$_[0]->_safe }
 
 ##############################################################################
 
@@ -1120,7 +1120,7 @@ File::KDBX - Encrypted database to store secret text and files
 
 =head1 VERSION
 
-version 0.900
+version 0.901
 
 =head1 SYNOPSIS
 
@@ -1933,19 +1933,19 @@ To get the I<Password> string of a specific entry (identified by its UUID):
 
     $kdbx->lock;
 
-Encrypt all protected binaries strings in a database. The encrypted strings are stored in
-a L<File::KDBX::Safe> associated with the database and the actual strings will be replaced with C<undef> to
+Encrypt all protected strings and binaries in a database. The encrypted data is stored in
+a L<File::KDBX::Safe> associated with the database and the actual values will be replaced with C<undef> to
 indicate their protected state. Returns itself to allow method chaining.
 
-You can call C<code> on an already-locked database to memory-protect any unprotected strings and binaries
+You can call C<lock> on an already-locked database to memory-protect any unprotected strings and binaries
 added after the last time the database was locked.
 
 =head2 unlock
 
     $kdbx->unlock;
 
-Decrypt all protected strings in a database, replacing C<undef> placeholders with unprotected values. Returns
-itself to allow method chaining.
+Decrypt all protected strings and binaries in a database, replacing C<undef> value placeholders with their
+actual, unprotected values. Returns itself to allow method chaining.
 
 =head2 unlock_scoped
 
@@ -1955,6 +1955,14 @@ Unlock a database temporarily, relocking when the guard is released (typically a
 C<undef> if the database is already unlocked.
 
 See L</lock> and L</unlock>.
+
+Example:
+
+    {
+        my $guard = $kdbx->unlock_scoped;
+        ...;
+    }
+    # $kdbx is now memory-locked
 
 =head2 peek
 
@@ -1968,9 +1976,9 @@ a string or binary hashref as returned by L<File::KDBX::Entry/string> or L<File:
 
     $bool = $kdbx->is_locked;
 
-Get whether or not a database's strings are memory-protected. If this is true, then some or all of the
-protected strings within the database will be unavailable (literally have C<undef> values) until L</unlock> is
-called.
+Get whether or not a database's contents are in a locked (i.e. memory-protected) state. If this is true, then
+some or all of the protected strings and binaries within the database will be unavailable (literally have
+C<undef> values) until L</unlock> is called.
 
 =head2 remove_empty_groups
 
@@ -2053,8 +2061,8 @@ You normally do not need to call this method explicitly because the dumper does 
     $key = $kdbx->key($primitive);
 
 Get or set a L<File::KDBX::Key>. This is the master key (e.g. a password or a key file that can decrypt
-a database). You can also pass a primitive that can be cast to a B<Key>. See L<File::KDBX::Key/new> for an
-explanation of what the primitive can be.
+a database). You can also pass a primitive castable to a B<Key>. See L<File::KDBX::Key/new> for an explanation
+of what the primitive can be.
 
 You generally don't need to call this directly because you can provide the key directly to the loader or
 dumper when loading or dumping a KDBX file.
@@ -2711,12 +2719,12 @@ B<TODO> - This is a planned feature, not yet implemented.
 =head1 ERRORS
 
 Errors in this package are constructed as L<File::KDBX::Error> objects and propagated using perl's built-in
-mechanisms. Fatal errors are propagated using L<functions/die> and non-fatal errors (a.k.a. warnings) are
-propagated using L<functions/warn> while adhering to perl's L<warnings> system. If you're already familiar
-with these mechanisms, you can skip this section.
+mechanisms. Fatal errors are propagated using L<perlfunc/"die LIST"> and non-fatal errors (a.k.a. warnings)
+are propagated using L<perlfunc/"warn LIST"> while adhering to perl's L<warnings> system. If you're already
+familiar with these mechanisms, you can skip this section.
 
-You can catch fatal errors using L<functions/eval> (or something like L<Try::Tiny>) and non-fatal errors using
-C<$SIG{__WARN__}> (see L<variables/%SIG>). Examples:
+You can catch fatal errors using L<perlfunc/"eval BLOCK"> (or something like L<Try::Tiny>) and non-fatal
+errors using C<$SIG{__WARN__}> (see L<perlvar/%SIG>). Examples:
 
     use File::KDBX::Error qw(error);
 

@@ -8,7 +8,7 @@ use Exporter qw(import);
 use Scalar::Util qw(blessed looks_like_number);
 use namespace::clean -except => 'import';
 
-our $VERSION = '0.900'; # VERSION
+our $VERSION = '0.901'; # VERSION
 
 our @EXPORT = qw(alert error throw);
 
@@ -166,7 +166,7 @@ File::KDBX::Error - Represents something bad that happened
 
 =head1 VERSION
 
-version 0.900
+version 0.901
 
 =head1 ATTRIBUTES
 

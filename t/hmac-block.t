@@ -44,9 +44,9 @@ SKIP: {
         $write = File::KDBX::IO::HmacBlock->new($write, key => $KEY);
         print $write $expected_plaintext;
         close($write) or die "close failed: $!";
-        # exit;
-        require POSIX;
-        POSIX::_exit(0);
+        exit;
+        # require POSIX;
+        # POSIX::_exit(0);
     }
 
     $read = File::KDBX::IO::HmacBlock->new($read, key => $KEY);

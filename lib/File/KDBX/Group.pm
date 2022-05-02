@@ -19,7 +19,7 @@ use namespace::clean;
 
 extends 'File::KDBX::Object';
 
-our $VERSION = '0.900'; # VERSION
+our $VERSION = '0.901'; # VERSION
 
 
 # has uuid                        => sub { generate_uuid(printable => 1) };
@@ -398,7 +398,7 @@ File::KDBX::Group - A KDBX database group
 
 =head1 VERSION
 
-version 0.900
+version 0.901
 
 =head1 DESCRIPTION
 

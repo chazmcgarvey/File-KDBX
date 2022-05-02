@@ -18,7 +18,7 @@ use namespace::clean;
 
 extends 'File::KDBX::Loader';
 
-our $VERSION = '0.900'; # VERSION
+our $VERSION = '0.901'; # VERSION
 
 has '_reader',  is => 'ro';
 has '_safe',    is => 'ro', default => sub { File::KDBX::Safe->new(cipher => $_[0]->kdbx->random_stream) };
@@ -591,7 +591,7 @@ File::KDBX::Loader::XML - Load unencrypted XML KeePass files
 
 =head1 VERSION
 
-version 0.900
+version 0.901
 
 =head1 BUGS
 

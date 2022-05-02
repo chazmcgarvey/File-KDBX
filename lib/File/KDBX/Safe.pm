@@ -14,7 +14,7 @@ use Ref::Util qw(is_arrayref is_coderef is_hashref is_scalarref);
 use Scalar::Util qw(refaddr);
 use namespace::clean;
 
-our $VERSION = '0.900'; # VERSION
+our $VERSION = '0.901'; # VERSION
 
 
 sub new {
@@ -110,7 +110,7 @@ sub add_protected {
     @strings or throw 'Must provide strings to lock';
 
     for my $string (@strings) {
-        my $item = {str => $string};
+        my $item = {str => $string, off => $self->{counter}};
         $item->{filter} = $filter if defined $filter;
         if (is_scalarref($string)) {
             next if !defined $$string;
@@ -217,7 +217,7 @@ File::KDBX::Safe - Keep strings encrypted while in memory
 
 =head1 VERSION
 
-version 0.900
+version 0.901
 
 =head1 SYNOPSIS
 

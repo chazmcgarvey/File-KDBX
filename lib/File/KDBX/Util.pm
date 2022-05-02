@@ -17,7 +17,7 @@ use Time::Piece;
 use boolean;
 use namespace::clean -except => 'import';
 
-our $VERSION = '0.900'; # VERSION
+our $VERSION = '0.901'; # VERSION
 
 our %EXPORT_TAGS = (
     assert      => [qw(DEBUG assert assert_64bit)],
@@ -803,7 +803,7 @@ File::KDBX::Util - Utility functions for working with KDBX files
 
 =head1 VERSION
 
-version 0.900
+version 0.901
 
 =head1 FUNCTIONS
 
@@ -1054,8 +1054,8 @@ Get either a L</query> or L</simple_expression_query>, depending on the argument
     $size = read_all($fh, my $buffer, $size);
     $size = read_all($fh, my $buffer, $size, $offset);
 
-Like L<functions/read> but returns C<undef> if not all C<$size> bytes are read. This is considered an error,
-distinguishable from other errors by C<$!> not being set.
+Like L<perlfunc/"read FILEHANDLE,SCALAR,LENGTH,OFFSET"> but returns C<undef> if not all C<$size> bytes are
+read. This is considered an error, distinguishable from other errors by C<$!> not being set.
 
 =head2 recurse_limit
 

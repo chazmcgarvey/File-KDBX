@@ -105,10 +105,12 @@ subtest 'Verify ProtectedStrings' => sub {
 
     is $kdbx->meta->{database_name}, 'Protected Strings Test', 'Extract database name from meta';
 
-    $kdbx->unlock;
-
     my $entry = $kdbx->entries->next;
     is $entry->title, 'Sample Entry', 'Get entry title';
+
+    is $entry->string_peek('Password'), 'ProtectedPassword', 'Peek at password from entry';
+    is $entry->string_peek('TestProtected'), 'ABC', 'Peek at protected string from entry';
+    $kdbx->unlock;
     is $entry->username, 'Protected User Name', 'Get protected username from entry';
     is $entry->password, 'ProtectedPassword', 'Get protected password from entry';
     is $entry->string_value('TestProtected'), 'ABC', 'Get ABC string from entry';

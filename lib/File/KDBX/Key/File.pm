@@ -17,7 +17,7 @@ use namespace::clean;
 
 extends 'File::KDBX::Key';
 
-our $VERSION = '0.900'; # VERSION
+our $VERSION = '0.901'; # VERSION
 
 
 has 'type',     is => 'ro';
@@ -99,18 +99,24 @@ sub save {
     my $version     = $args{version} // $self->version // 2;
     my $filepath    = $args{filepath} // $self->filepath;
     my $fh          = $args{fh};
+    my $atomic      = $args{atomic} // 1;
 
     my $filepath_temp;
     if (!openhandle($fh)) {
         $filepath or throw 'Must specify where to safe the key file to';
 
-        require File::Temp;
-        ($fh, $filepath_temp) = eval { File::Temp::tempfile("${filepath}-XXXXXX", CLEANUP => 1) };
-        if (!$fh or my $err = $@) {
-            $err //= 'Unknown error';
-            throw sprintf('Open file failed (%s): %s', $filepath_temp, $err),
-                error       => $err,
-                filepath    => $filepath_temp;
+        if ($atomic) {
+            require File::Temp;
+            ($fh, $filepath_temp) = eval { File::Temp::tempfile("${filepath}-XXXXXX", UNLINK => 1) };
+            if (!$fh or my $err = $@) {
+                $err //= 'Unknown error';
+                throw sprintf('Open file failed (%s): %s', $filepath_temp, $err),
+                    error       => $err,
+                    filepath    => $filepath_temp;
+            }
+        }
+        else {
+            open($fh, '>:raw', $filepath) or throw "Open file failed ($filepath): $!", filepath => $filepath;
         }
     }
 
@@ -256,7 +262,7 @@ File::KDBX::Key::File - A file key
 
 =head1 VERSION
 
-version 0.900
+version 0.901
 
 =head1 SYNOPSIS
 
@@ -376,6 +382,10 @@ C<fh> - IO handle to write to (overrides C<filepath>, one of which must be defin
 =item *
 
 C<raw_key> - Raw key (default: value of L</raw_key>)
+
+=item *
+
+C<atomic> - Write to the filepath atomically (default: true)
 
 =back
 

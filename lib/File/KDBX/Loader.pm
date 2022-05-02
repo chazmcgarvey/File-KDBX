@@ -14,7 +14,7 @@ use Ref::Util qw(is_ref is_scalarref);
 use Scalar::Util qw(looks_like_number openhandle);
 use namespace::clean;
 
-our $VERSION = '0.900'; # VERSION
+our $VERSION = '0.901'; # VERSION
 
 
 sub new {
@@ -249,7 +249,7 @@ File::KDBX::Loader - Load KDBX files
 
 =head1 VERSION
 
-version 0.900
+version 0.901
 
 =head1 DESCRIPTION
 
@@ -333,37 +333,73 @@ Set a L<File::KDBX::Loader> to a blank state, ready to load another KDBX file.
 
 =head2 load
 
+    $kdbx = File::KDBX::Loader->load(\$string, %options);
     $kdbx = File::KDBX::Loader->load(\$string, $key);
+    $kdbx = File::KDBX::Loader->load(*IO, %options);
     $kdbx = File::KDBX::Loader->load(*IO, $key);
+    $kdbx = File::KDBX::Loader->load($filepath, %options);
     $kdbx = File::KDBX::Loader->load($filepath, $key);
-    $kdbx = $loader->load(...); # also instance method
 
-Load a KDBX file.
+Load a KDBX file. This works as an instance or a class method. The C<$key> is either
+a L<File::KDBX::Key> or a primitive castable to a Key object. Available options:
 
-The C<$key> is either a L<File::KDBX::Key> or a primitive that can be cast to a Key object.
+=over 4
+
+=item *
+
+C<key> - Alternative way to specify C<$key>
+
+=back
 
 =head2 load_string
 
+    $kdbx = File::KDBX::Loader->load_string($string, %options);
     $kdbx = File::KDBX::Loader->load_string($string, $key);
+    $kdbx = File::KDBX::Loader->load_string(\$string, %options);
     $kdbx = File::KDBX::Loader->load_string(\$string, $key);
-    $kdbx = $loader->load_string(...); # also instance method
 
-Load a KDBX file from a string / memory buffer.
+Load a KDBX file from a string / memory buffer. This works as an instance or class method. Available options:
+
+=over 4
+
+=item *
+
+C<key> - Alternative way to specify C<$key>
+
+=back
 
 =head2 load_file
 
+    $kdbx = File::KDBX::Loader->load_file($filepath, %options);
     $kdbx = File::KDBX::Loader->load_file($filepath, $key);
-    $kdbx = $loader->load_file(...); # also instance method
 
-Read a KDBX file from a filesystem.
+Read a KDBX file from a filesystem. This works as an instance or class method. Available options:
+
+=over 4
+
+=item *
+
+C<key> - Alternative way to specify C<$key>
+
+=back
 
 =head2 load_handle
 
+    $kdbx = File::KDBX::Loader->load_handle($fh, %options);
     $kdbx = File::KDBX::Loader->load_handle($fh, $key);
+    $kdbx = File::KDBX::Loader->load_handle(*IO, %options);
     $kdbx = File::KDBX::Loader->load_handle(*IO, $key);
-    $kdbx->load_handle(...); # also instance method
 
-Read a KDBX file from an input stream / file handle.
+Read a KDBX file from an input stream / file handle. This works as an instance or class method. Available
+options:
+
+=over 4
+
+=item *
+
+C<key> - Alternative way to specify C<$key>
+
+=back
 
 =head2 read_magic_numbers
 
