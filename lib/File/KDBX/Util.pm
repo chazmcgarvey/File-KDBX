@@ -716,8 +716,8 @@ sub query_any {
     $size = read_all($fh, my $buffer, $size);
     $size = read_all($fh, my $buffer, $size, $offset);
 
-Like L<functions/read> but returns C<undef> if not all C<$size> bytes are read. This is considered an error,
-distinguishable from other errors by C<$!> not being set.
+Like L<perlfunc/"read FILEHANDLE,SCALAR,LENGTH,OFFSET"> but returns C<undef> if not all C<$size> bytes are
+read. This is considered an error, distinguishable from other errors by C<$!> not being set.
 
 =cut
 

@@ -9,6 +9,7 @@ use lib "$Bin/lib";
 use TestCommon;
 
 use File::KDBX;
+use File::Temp qw(tempfile);
 use Test::Deep;
 use Test::More;
 use Time::Piece;
@@ -168,6 +169,26 @@ subtest 'Maintenance' => sub {
     $entry->custom_icon('fake image');
     cmp_ok $kdbx->remove_duplicate_icons, '==', 1, 'Remove duplicate icons';
     is $entry->custom_icon_uuid, $icon_uuid, 'Uses of removed icon change';
+};
+
+subtest 'Dumping to filesystem' => sub {
+    my $kdbx = File::KDBX->new;
+    $kdbx->add_entry(title => 'Foo', password => 'whatever');
+
+    my ($fh, $filepath) = tempfile('kdbx-XXXXXX', TMPDIR => 1, UNLINK => 1);
+    close($fh);
+
+    $kdbx->dump($filepath, 'a');
+
+    my $kdbx2 = File::KDBX->load($filepath, 'a');
+    my $entry = $kdbx2->entries->map(sub { $_->title.'/'.$_->expand_password })->next;
+    is $entry, 'Foo/whatever', 'Dump and load an entry';
+
+    $kdbx->dump($filepath, key => 'a', atomic => 0);
+
+    $kdbx2 = File::KDBX->load($filepath, 'a');
+    $entry = $kdbx2->entries->map(sub { $_->title.'/'.$_->expand_password })->next;
+    is $entry, 'Foo/whatever', 'Dump and load an entry (non-atomic)';
 };
 
 done_testing;

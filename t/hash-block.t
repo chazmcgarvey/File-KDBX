@@ -40,9 +40,9 @@ SKIP: {
         $write = File::KDBX::IO::HashBlock->new($write);
         print $write $expected_plaintext;
         close($write) or die "close failed: $!";
-        # exit;
-        require POSIX;
-        POSIX::_exit(0);
+        exit;
+        # require POSIX;
+        # POSIX::_exit(0);
     }
 
     $read = File::KDBX::IO::HashBlock->new($read);

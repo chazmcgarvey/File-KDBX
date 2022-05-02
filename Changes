@@ -2,8 +2,10 @@ Revision history for File-KDBX.
 
 {{$NEXT}}
 
-  * Fix a bug where peeking at memory-protected strings and binaries does not
-    work without unlocking the database at least once.
+  * Fixed a bug where peeking at memory-protected strings and binaries does
+    not work without unlocking the database at least once.
+  * Added an option for writing files non-atomically.
+  * Fixed broken tests on Windows.
 
 0.900     2022-05-01 12:55:59-0600
 
@@ -12,7 +14,7 @@ Revision history for File-KDBX.
   * Now use the database maintenance_history_days value as the default
     "max_age" value in prune_history method.
   * Fixed distribution prereq issues.
-  * Clean up a lot of pod typos and other inaccuracies.
+  * Cleaned up a lot of pod typos and other inaccuracies.
 
 0.800     2022-04-30 21:14:30-0600
 

@@ -1427,8 +1427,8 @@ sub randomize_seeds {
     $key = $kdbx->key($primitive);
 
 Get or set a L<File::KDBX::Key>. This is the master key (e.g. a password or a key file that can decrypt
-a database). You can also pass a primitive that can be cast to a B<Key>. See L<File::KDBX::Key/new> for an
-explanation of what the primitive can be.
+a database). You can also pass a primitive castable to a B<Key>. See L<File::KDBX::Key/new> for an explanation
+of what the primitive can be.
 
 You generally don't need to call this directly because you can provide the key directly to the loader or
 dumper when loading or dumping a KDBX file.
@@ -2419,12 +2419,12 @@ B<TODO> - This is a planned feature, not yet implemented.
 =head1 ERRORS
 
 Errors in this package are constructed as L<File::KDBX::Error> objects and propagated using perl's built-in
-mechanisms. Fatal errors are propagated using L<functions/die> and non-fatal errors (a.k.a. warnings) are
-propagated using L<functions/warn> while adhering to perl's L<warnings> system. If you're already familiar
-with these mechanisms, you can skip this section.
+mechanisms. Fatal errors are propagated using L<perlfunc/"die LIST"> and non-fatal errors (a.k.a. warnings)
+are propagated using L<perlfunc/"warn LIST"> while adhering to perl's L<warnings> system. If you're already
+familiar with these mechanisms, you can skip this section.
 
-You can catch fatal errors using L<functions/eval> (or something like L<Try::Tiny>) and non-fatal errors using
-C<$SIG{__WARN__}> (see L<variables/%SIG>). Examples:
+You can catch fatal errors using L<perlfunc/"eval BLOCK"> (or something like L<Try::Tiny>) and non-fatal
+errors using C<$SIG{__WARN__}> (see L<perlvar/%SIG>). Examples:
 
     use File::KDBX::Error qw(error);
 

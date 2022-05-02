@@ -55,7 +55,8 @@ for my $test (
     subtest "Save $type key file" => sub {
         my ($type, $filename, $expected_key, $version) = @_;
 
-        my ($fh, $filepath) = tempfile('keyfile-XXXXXX', TMPDIR => 1, UNLINK => 1, SUFFIX => '.key');
+        my ($fh, $filepath) = tempfile('keyfile-XXXXXX', TMPDIR => 1, UNLINK => 1);
+        close($fh);
         note $filepath;
         my $key = File::KDBX::Key::File->new(
             filepath    => $filepath,
@@ -65,7 +66,6 @@ for my $test (
         );
 
         my $e = exception { $key->save };
-        close($fh);
 
         if ($type == KEY_FILE_TYPE_HASHED) {
             like $e, qr/invalid type/i, "Cannot save $type file";
@@ -88,7 +88,7 @@ subtest 'IO handle key files' => sub {
         'Can calculate raw key from file handle' or diag encode_b64($key->raw_key);
     is $key->type, 'hashed', 'file type is detected as hashed';
 
-    my ($fh_save, $filepath) = tempfile('keyfile-XXXXXX', TMPDIR => 1, UNLINK => 1, SUFFIX => '.key');
+    my ($fh_save, $filepath) = tempfile('keyfile-XXXXXX', TMPDIR => 1, UNLINK => 1);
     is exception { $key->save(fh => $fh_save, type => KEY_FILE_TYPE_XML) }, undef,
         'Save key file using IO handle';
     close($fh_save);
