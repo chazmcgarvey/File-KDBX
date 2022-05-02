@@ -8,7 +8,7 @@ File::KDBX - Encrypted database to store secret text and files
 
 # VERSION
 
-version 0.900
+version 0.901
 
 # SYNOPSIS
 
@@ -747,11 +747,11 @@ my $password = $kdbx->resolve_reference('{REF:P@I:46C9B1FFBD4ABC4BBB260C6190BAD2
 $kdbx->lock;
 ```
 
-Encrypt all protected binaries strings in a database. The encrypted strings are stored in
-a [File::KDBX::Safe](https://metacpan.org/pod/File%3A%3AKDBX%3A%3ASafe) associated with the database and the actual strings will be replaced with `undef` to
+Encrypt all protected strings and binaries in a database. The encrypted data is stored in
+a [File::KDBX::Safe](https://metacpan.org/pod/File%3A%3AKDBX%3A%3ASafe) associated with the database and the actual values will be replaced with `undef` to
 indicate their protected state. Returns itself to allow method chaining.
 
-You can call `code` on an already-locked database to memory-protect any unprotected strings and binaries
+You can call `lock` on an already-locked database to memory-protect any unprotected strings and binaries
 added after the last time the database was locked.
 
 ## unlock
@@ -760,8 +760,8 @@ added after the last time the database was locked.
 $kdbx->unlock;
 ```
 
-Decrypt all protected strings in a database, replacing `undef` placeholders with unprotected values. Returns
-itself to allow method chaining.
+Decrypt all protected strings and binaries in a database, replacing `undef` value placeholders with their
+actual, unprotected values. Returns itself to allow method chaining.
 
 ## unlock\_scoped
 
@@ -773,6 +773,16 @@ Unlock a database temporarily, relocking when the guard is released (typically a
 `undef` if the database is already unlocked.
 
 See ["lock"](#lock) and ["unlock"](#unlock).
+
+Example:
+
+```perl
+{
+    my $guard = $kdbx->unlock_scoped;
+    ...;
+}
+# $kdbx is now memory-locked
+```
 
 ## peek
 
@@ -790,9 +800,9 @@ a string or binary hashref as returned by ["string" in File::KDBX::Entry](https:
 $bool = $kdbx->is_locked;
 ```
 
-Get whether or not a database's strings are memory-protected. If this is true, then some or all of the
-protected strings within the database will be unavailable (literally have `undef` values) until ["unlock"](#unlock) is
-called.
+Get whether or not a database's contents are in a locked (i.e. memory-protected) state. If this is true, then
+some or all of the protected strings and binaries within the database will be unavailable (literally have
+`undef` values) until ["unlock"](#unlock) is called.
 
 ## remove\_empty\_groups
 
@@ -857,8 +867,8 @@ $key = $kdbx->key($primitive);
 ```
 
 Get or set a [File::KDBX::Key](https://metacpan.org/pod/File%3A%3AKDBX%3A%3AKey). This is the master key (e.g. a password or a key file that can decrypt
-a database). You can also pass a primitive that can be cast to a **Key**. See ["new" in File::KDBX::Key](https://metacpan.org/pod/File%3A%3AKDBX%3A%3AKey#new) for an
-explanation of what the primitive can be.
+a database). You can also pass a primitive castable to a **Key**. See ["new" in File::KDBX::Key](https://metacpan.org/pod/File%3A%3AKDBX%3A%3AKey#new) for an explanation
+of what the primitive can be.
 
 You generally don't need to call this directly because you can provide the key directly to the loader or
 dumper when loading or dumping a KDBX file.
@@ -1405,12 +1415,12 @@ Database
 # ERRORS
 
 Errors in this package are constructed as [File::KDBX::Error](https://metacpan.org/pod/File%3A%3AKDBX%3A%3AError) objects and propagated using perl's built-in
-mechanisms. Fatal errors are propagated using ["die" in functions](https://metacpan.org/pod/functions#die) and non-fatal errors (a.k.a. warnings) are
-propagated using ["warn" in functions](https://metacpan.org/pod/functions#warn) while adhering to perl's [warnings](https://metacpan.org/pod/warnings) system. If you're already familiar
-with these mechanisms, you can skip this section.
+mechanisms. Fatal errors are propagated using ["die LIST" in perlfunc](https://metacpan.org/pod/perlfunc#die-LIST) and non-fatal errors (a.k.a. warnings)
+are propagated using ["warn LIST" in perlfunc](https://metacpan.org/pod/perlfunc#warn-LIST) while adhering to perl's [warnings](https://metacpan.org/pod/warnings) system. If you're already
+familiar with these mechanisms, you can skip this section.
 
-You can catch fatal errors using ["eval" in functions](https://metacpan.org/pod/functions#eval) (or something like [Try::Tiny](https://metacpan.org/pod/Try%3A%3ATiny)) and non-fatal errors using
-`$SIG{__WARN__}` (see ["%SIG" in variables](https://metacpan.org/pod/variables#SIG)). Examples:
+You can catch fatal errors using ["eval BLOCK" in perlfunc](https://metacpan.org/pod/perlfunc#eval-BLOCK) (or something like [Try::Tiny](https://metacpan.org/pod/Try%3A%3ATiny)) and non-fatal
+errors using `$SIG{__WARN__}` (see ["%SIG" in perlvar](https://metacpan.org/pod/perlvar#SIG)). Examples:
 
 ```perl
 use File::KDBX::Error qw(error);
