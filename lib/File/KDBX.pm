@@ -1155,11 +1155,11 @@ our %PLACEHOLDERS = (
 
     $kdbx->lock;
 
-Encrypt all protected binaries strings in a database. The encrypted strings are stored in
-a L<File::KDBX::Safe> associated with the database and the actual strings will be replaced with C<undef> to
+Encrypt all protected strings and binaries in a database. The encrypted data is stored in
+a L<File::KDBX::Safe> associated with the database and the actual values will be replaced with C<undef> to
 indicate their protected state. Returns itself to allow method chaining.
 
-You can call C<code> on an already-locked database to memory-protect any unprotected strings and binaries
+You can call C<lock> on an already-locked database to memory-protect any unprotected strings and binaries
 added after the last time the database was locked.
 
 =cut
@@ -1192,8 +1192,8 @@ sub lock {
 
     $kdbx->unlock;
 
-Decrypt all protected strings in a database, replacing C<undef> placeholders with unprotected values. Returns
-itself to allow method chaining.
+Decrypt all protected strings and binaries in a database, replacing C<undef> value placeholders with their
+actual, unprotected values. Returns itself to allow method chaining.
 
 =cut
 
@@ -1215,6 +1215,14 @@ Unlock a database temporarily, relocking when the guard is released (typically a
 C<undef> if the database is already unlocked.
 
 See L</lock> and L</unlock>.
+
+Example:
+
+    {
+        my $guard = $kdbx->unlock_scoped;
+        ...;
+    }
+    # $kdbx is now memory-locked
 
 =cut
 
@@ -1249,13 +1257,13 @@ sub peek {
 
     $bool = $kdbx->is_locked;
 
-Get whether or not a database's strings are memory-protected. If this is true, then some or all of the
-protected strings within the database will be unavailable (literally have C<undef> values) until L</unlock> is
-called.
+Get whether or not a database's contents are in a locked (i.e. memory-protected) state. If this is true, then
+some or all of the protected strings and binaries within the database will be unavailable (literally have
+C<undef> values) until L</unlock> is called.
 
 =cut
 
-sub is_locked { $_[0]->_safe ? 1 : 0 }
+sub is_locked { !!$_[0]->_safe }
 
 ##############################################################################
 
