@@ -598,7 +598,7 @@ sub pack_Ql {
     my $num = shift;
     require Config;
     if ($Config::Config{ivsize} < 8) {
-        if (blessed $num && $num->can('to_hex')) {
+        if (blessed $num && $num->can('as_hex')) {
             return "\xff\xff\xff\xff\xff\xff\xff\xff" if Math::BigInt->new('18446744073709551615') <= $num;
             return "\x00\x00\x00\x00\x00\x00\x00\x80" if $num <= Math::BigInt->new('-9223372036854775808');
             my $neg;
@@ -606,7 +606,9 @@ sub pack_Ql {
                 $neg = 1;
                 $num = -$num;
             }
-            my $bytes = reverse pack('H16', substr(('0' x 15) . $num->to_hex, -16));
+            my $hex = $num->as_hex;
+            $hex =~ s/^0x/000000000000000/;
+            my $bytes = reverse pack('H16', substr($hex, -16));
             $bytes .= "\0" x (8 - length $bytes) if length $bytes < 8;
             if ($neg) {
                 # two's compliment
@@ -646,7 +648,7 @@ sub unpack_Ql {
     require Config;
     if ($Config::Config{ivsize} < 8) {
         require Math::BigInt;
-        return (Math::BigInt->new('0x' . unpack('H*', scalar reverse $bytes)));
+        return Math::BigInt->new('0x' . unpack('H*', scalar reverse $bytes));
     }
     return unpack('Q<', $bytes);
 }
@@ -665,14 +667,14 @@ sub unpack_ql {
     if ($Config::Config{ivsize} < 8) {
         require Math::BigInt;
         if (ord(substr($bytes, -1, 1)) & 128) {
-            return (Math::BigInt->new('-9223372036854775808')) if $bytes eq "\x00\x00\x00\x00\x00\x00\x00\x80";
+            return Math::BigInt->new('-9223372036854775808') if $bytes eq "\x00\x00\x00\x00\x00\x00\x00\x80";
             # two's compliment
             substr($bytes, 0, 1, chr(ord(substr($bytes, 0, 1)) - 1));
             $bytes = join('', map { chr(~ord($_) & 0xff) } split(//, $bytes));
-            return (-Math::BigInt->new('0x' . unpack('H*', scalar reverse $bytes)));
+            return -Math::BigInt->new('0x' . unpack('H*', scalar reverse $bytes));
         }
         else {
-            return (Math::BigInt->new('0x' . unpack('H*', scalar reverse $bytes)));
+            return Math::BigInt->new('0x' . unpack('H*', scalar reverse $bytes));
         }
     }
     return unpack('q<', $bytes);
