@@ -7,7 +7,7 @@ use strict;
 use File::KDBX::Constants qw(:yubikey);
 use File::KDBX::Error;
 use File::KDBX::Util qw(:class :io pad_pkcs7);
-use IPC::Cmd 0.52 qw(run_forked);
+use IPC::Cmd 0.84 qw(run_forked);
 use Ref::Util qw(is_arrayref);
 use Symbol qw(gensym);
 use namespace::clean;
