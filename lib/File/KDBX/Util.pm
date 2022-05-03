@@ -7,7 +7,6 @@ use strict;
 use Crypt::PRNG qw(random_bytes random_string);
 use Encode qw(decode encode);
 use Exporter qw(import);
-use File::KDBX::Constants qw(:bool);
 use File::KDBX::Error;
 use List::Util 1.33 qw(any all);
 use Module::Load;
@@ -20,7 +19,7 @@ use namespace::clean -except => 'import';
 our $VERSION = '999.999'; # VERSION
 
 our %EXPORT_TAGS = (
-    assert      => [qw(DEBUG assert assert_64bit)],
+    assert      => [qw(DEBUG assert)],
     class       => [qw(extends has list_attributes)],
     clone       => [qw(clone clone_nomagic)],
     coercion    => [qw(to_bool to_number to_string to_time to_tristate to_uuid)],
@@ -31,7 +30,8 @@ our %EXPORT_TAGS = (
     empty       => [qw(empty nonempty)],
     erase       => [qw(erase erase_scoped)],
     gzip        => [qw(gzip gunzip)],
-    io          => [qw(is_readable is_writable read_all)],
+    int         => [qw(int64 pack_ql pack_Ql unpack_ql unpack_Ql)],
+    io          => [qw(read_all)],
     load        => [qw(load_optional load_xs try_load_optional)],
     search      => [qw(query query_any search simple_expression_query)],
     text        => [qw(snakify trim)],
@@ -101,8 +101,8 @@ my %ATTRIBUTES;
     $bool = load_xs();
     $bool = load_xs($version);
 
-Attempt to load L<File::KDBX::XS>. Return truthy if C<XS> is loaded. If C<$version> is given, it will check
-that at least the given version is loaded.
+Attempt to load L<File::KDBX::XS>. Return truthy if it is loaded. If C<$version> is given, it will check that
+at least the given version is loaded.
 
 =cut
 
@@ -113,7 +113,7 @@ sub load_xs {
     goto IS_LOADED if defined $XS_LOADED;
 
     if ($ENV{PERL_ONLY} || (exists $ENV{PERL_FILE_KDBX_XS} && !$ENV{PERL_FILE_KDBX_XS})) {
-        return $XS_LOADED = FALSE;
+        return $XS_LOADED = !1;
     }
 
     $XS_LOADED = !!eval { require File::KDBX::XS; 1 };
@@ -150,20 +150,6 @@ sub assert(&) { ## no critic (ProhibitSubroutinePrototypes)
         $assertion = ": $assertion";
     }
     die "$0: $file:$line: Assertion failed$assertion\n";
-}
-
-=func assert_64bit
-
-    assert_64bit();
-
-Throw if perl doesn't support 64-bit IVs.
-
-=cut
-
-sub assert_64bit() {
-    require Config;
-    $Config::Config{ivsize} < 8
-        and throw "64-bit perl is required to use this feature.\n", ivsize => $Config::Config{ivsize};
 }
 
 =func can_fork
@@ -582,19 +568,115 @@ sub gzip {
     return $out;
 }
 
-=func is_readable
+=func int64
 
-=func is_writable
+    $int = int64($string);
 
-    $bool = is_readable($mode);
-    $bool = is_writable($mode);
-
-Determine of an C<fopen>-style mode is readable, writable or both.
+Get a scalar integer capable of holding 64-bit values, initialized with a given default value. On a 64-bit
+perl, it will return a regular SvIV. On a 32-bit perl it will return a L<Math::BigInt>.
 
 =cut
 
-sub is_readable { $_[0] !~ /^[aw]b?$/ }
-sub is_writable { $_[0] !~ /^rb?$/ }
+sub int64 {
+    require Config;
+    if ($Config::Config{ivsize} < 8) {
+        require Math::BigInt;
+        return Math::BigInt->new(@_);
+    }
+    return 0 + shift;
+}
+
+=func pack_Ql
+
+    $bytes = pack_Ql($int);
+
+Like C<pack('QE<lt>', $int)>, but also works on 32-bit perls.
+
+=cut
+
+sub pack_Ql {
+    my $num = shift;
+    require Config;
+    if ($Config::Config{ivsize} < 8) {
+        if (blessed $num && $num->can('to_hex')) {
+            return "\xff\xff\xff\xff\xff\xff\xff\xff" if Math::BigInt->new('18446744073709551615') <= $num;
+            return "\x00\x00\x00\x00\x00\x00\x00\x80" if $num <= Math::BigInt->new('-9223372036854775808');
+            my $neg;
+            if ($num < 0) {
+                $neg = 1;
+                $num = -$num;
+            }
+            my $bytes = reverse pack('H16', substr(('0' x 15) . $num->to_hex, -16));
+            $bytes .= "\0" x (8 - length $bytes) if length $bytes < 8;
+            if ($neg) {
+                # two's compliment
+                $bytes = join('', map { chr(~ord($_) & 0xff) } split(//, $bytes));
+                substr($bytes, 0, 1, chr(ord(substr($bytes, 0, 1)) + 1));
+            }
+            return $bytes;
+        }
+        else {
+            my $pad = $num < 0 ? "\xff" : "\0";
+            return pack('L<', $num) . ($pad x 4);
+        };
+    }
+    return pack('Q<', $num);
+}
+
+=func pack_ql
+
+    $bytes = pack_ql($int);
+
+Like C<pack('qE<lt>', $int)>, but also works on 32-bit perls.
+
+=cut
+
+sub pack_ql { goto &pack_Ql }
+
+=func unpack_Ql
+
+    $int = unpack_Ql($bytes);
+
+Like C<unpack('QE<lt>', $bytes)>, but also works on 32-bit perls.
+
+=cut
+
+sub unpack_Ql {
+    my $bytes = shift;
+    require Config;
+    if ($Config::Config{ivsize} < 8) {
+        require Math::BigInt;
+        return (Math::BigInt->new('0x' . unpack('H*', scalar reverse $bytes)));
+    }
+    return unpack('Q<', $bytes);
+}
+
+=func unpack_ql
+
+    $int = unpack_ql($bytes);
+
+Like C<unpack('qE<lt>', $bytes)>, but also works on 32-bit perls.
+
+=cut
+
+sub unpack_ql {
+    my $bytes = shift;
+    require Config;
+    if ($Config::Config{ivsize} < 8) {
+        require Math::BigInt;
+        if (ord(substr($bytes, -1, 1)) & 128) {
+            return (Math::BigInt->new('-9223372036854775808')) if $bytes eq "\x00\x00\x00\x00\x00\x00\x00\x80";
+            # two's compliment
+            substr($bytes, 0, 1, chr(ord(substr($bytes, 0, 1)) - 1));
+            $bytes = join('', map { chr(~ord($_) & 0xff) } split(//, $bytes));
+            return (-Math::BigInt->new('0x' . unpack('H*', scalar reverse $bytes)));
+        }
+        else {
+            return (Math::BigInt->new('0x' . unpack('H*', scalar reverse $bytes)));
+        }
+    }
+    return unpack('q<', $bytes);
+}
 
 =func is_uuid
 

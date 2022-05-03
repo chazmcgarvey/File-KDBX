@@ -8,7 +8,7 @@ use Crypt::Digest qw(digest_data);
 use Crypt::Mac::HMAC qw(hmac);
 use Errno;
 use File::KDBX::Error;
-use File::KDBX::Util qw(:class :io assert_64bit);
+use File::KDBX::Util qw(:class :int :io);
 use namespace::clean;
 
 extends 'File::KDBX::IO';
@@ -28,7 +28,7 @@ HMAC-SHA256 key for authenticating the data stream (required)
 =cut
 
 my %ATTRS = (
-    _block_index    => 0,
+    _block_index    => int64(0),
     _buffer         => sub { \(my $buf = '') },
     _finished       => 0,
     block_size      => sub { $BLOCK_SIZE },
@@ -53,8 +53,6 @@ Construct a new HMAC-block stream IO handle.
 =cut
 
 sub new {
-    assert_64bit;
-
     my $class = shift;
     my %args = @_ % 2 == 1 ? (fh => shift, @_) : @_;
     my $self = $class->SUPER::new;
@@ -158,7 +156,7 @@ sub _read_hashed_block {
             or throw 'Failed to read HMAC block', index => $self->_block_index, size => $size;
     }
 
-    my $packed_index = pack('Q<', $self->_block_index);
+    my $packed_index = pack_Ql($self->_block_index);
     my $got_hmac = hmac('SHA256', $self->_hmac_key,
         $packed_index,
         $packed_size,
@@ -185,7 +183,7 @@ sub _write_next_hmac_block {
     my $block = '';
     $block = substr($$buffer, 0, $size, '') if 0 < $size;
 
-    my $packed_index = pack('Q<', $self->_block_index);
+    my $packed_index = pack_Ql($self->_block_index);
     my $packed_size  = pack('L<', $size);
     my $hmac = hmac('SHA256', $self->_hmac_key,
         $packed_index,
@@ -212,7 +210,7 @@ sub _hmac_key {
     my $key = shift // $self->key;
     my $index = shift // $self->_block_index;
 
-    my $packed_index = pack('Q<', $index);
+    my $packed_index = pack_Ql($index);
     my $hmac_key = digest_data('SHA512', $packed_index, $key);
     return $hmac_key;
 }

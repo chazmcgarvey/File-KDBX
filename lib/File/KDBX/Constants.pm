@@ -10,6 +10,7 @@ use warnings;
 use strict;
 
 use Exporter qw(import);
+use File::KDBX::Util qw(int64);
 use Scalar::Util qw(dualvar);
 use namespace::clean -except => 'import';
 
@@ -213,7 +214,7 @@ BEGIN {
         },
         time        => {
             __prefix                    => 'TIME',
-            SECONDS_AD1_TO_UNIX_EPOCH   => 62_135_596_800,
+            SECONDS_AD1_TO_UNIX_EPOCH   => int64('62135596800'),
         },
         yubikey     => {
             YUBICO_VID              => dualvar( 0x1050, 'Yubico'),

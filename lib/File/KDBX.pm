@@ -2485,13 +2485,6 @@ This software will alter its behavior depending on the value of certain environm
 * C<PERL_ONLY> - Do not use L<File::KDBX::XS> if true (default: false)
 * C<NO_FORK> - Do not fork if true (default: false)
 
-=head1 CAVEATS
-
-Some features (e.g. parsing) require 64-bit perl. It should be possible and actually pretty easy to make it
-work using L<Math::BigInt>, but I need to build a 32-bit perl in order to test it and frankly I'm still
-figuring out how. I'm sure it's simple so I'll mark this one "TODO", but for now an exception will be thrown
-when trying to use such features with undersized IVs.
-
 =head1 SEE ALSO
 
 =for :list

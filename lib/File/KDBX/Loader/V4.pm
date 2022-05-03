@@ -22,7 +22,7 @@ use Crypt::Mac::HMAC qw(hmac);
 use Encode qw(decode);
 use File::KDBX::Constants qw(:header :inner_header :variant_map :compression);
 use File::KDBX::Error;
-use File::KDBX::Util qw(:class :io :load assert_64bit erase_scoped);
+use File::KDBX::Util qw(:class :int :io :load erase_scoped);
 use File::KDBX::IO::Crypt;
 use File::KDBX::IO::HmacBlock;
 use boolean;
@@ -116,8 +116,7 @@ sub _read_variant_dictionary {
             ($val) = unpack('L<', $val);
         }
         elsif ($type == VMAP_TYPE_UINT64) {
-            assert_64bit;
-            ($val) = unpack('Q<', $val);
+            ($val) = unpack_Ql($val);
         }
         elsif ($type == VMAP_TYPE_BOOL) {
             ($val) = unpack('C', $val);
@@ -127,8 +126,7 @@ sub _read_variant_dictionary {
             ($val) = unpack('l<', $val);
         }
         elsif ($type == VMAP_TYPE_INT64) {
-            assert_64bit;
-            ($val) = unpack('q<', $val);
+            ($val) = unpack_ql($val);
         }
         elsif ($type == VMAP_TYPE_STRING) {
             $val = decode('UTF-8', $val);
