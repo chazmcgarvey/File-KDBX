@@ -1,6 +1,7 @@
 package File::KDBX::Error;
 # ABSTRACT: Represents something bad that happened
 
+use 5.010;
 use warnings;
 use strict;
 

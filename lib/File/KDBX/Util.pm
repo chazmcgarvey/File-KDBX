@@ -1,6 +1,7 @@
 package File::KDBX::Util;
 # ABSTRACT: Utility functions for working with KDBX files
 
+use 5.010;
 use warnings;
 use strict;
 

@@ -1,6 +1,7 @@
 package File::KDBX;
 # ABSTRACT: Encrypted database to store secret text and files
 
+use 5.010;
 use warnings;
 use strict;
 

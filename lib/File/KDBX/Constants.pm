@@ -6,6 +6,7 @@ package File::KDBX::Constants;
 #  2. List it in the pod at the bottom of this file in the section corresponding to its tag.
 #  3. There is no step three.
 
+use 5.010;
 use warnings;
 use strict;
 
