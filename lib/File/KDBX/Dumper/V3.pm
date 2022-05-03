@@ -152,7 +152,6 @@ sub _write_body {
 
     $fh->print($kdbx->headers->{+HEADER_STREAM_START_BYTES})
         or throw 'Failed to write start bytes';
-    $fh->flush;
 
     $kdbx->key($key);
 

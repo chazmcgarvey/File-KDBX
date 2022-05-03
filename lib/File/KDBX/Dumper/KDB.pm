@@ -29,8 +29,6 @@ sub _write_body {
     my $k = File::KeePass::KDBX->new($self->kdbx)->to_fkp;
     $self->_write_custom_icons($self->kdbx, $k);
 
-    # TODO create a KPX_CUSTOM_ICONS_4 meta stream. FKP itself handles KPX_GROUP_TREE_STATE
-
     substr($k->header->{seed_rand}, 16) = '';
 
     $key = $self->kdbx->composite_key($key, keep_primitive => 1);

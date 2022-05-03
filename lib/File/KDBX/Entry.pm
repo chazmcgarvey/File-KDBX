@@ -4,7 +4,7 @@ package File::KDBX::Entry;
 use warnings;
 use strict;
 
-use Crypt::Misc 0.029 qw(decode_b64 encode_b32r);
+use Crypt::Misc 0.049 qw(decode_b64 encode_b32r);
 use Devel::GlobalDestruction;
 use Encode qw(encode);
 use File::KDBX::Constants qw(:history :icon);

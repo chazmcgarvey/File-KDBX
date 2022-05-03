@@ -456,7 +456,7 @@ C<run_forked> from L<IPC::Cmd> worked in Windows, but it probably doesn't. I spe
 various quirks to L<IPC::Open3> and L<IPC::Cmd> implementations but never quite got it to worked reliably
 without deadlocks. Maybe I'll revisit this later. Hit me up so I know if there's demand.
 
-It would also be possible to implement this is an XS module that incorporated ykcore, using libusb-1 which
+It would also be possible to implement this as an XS module that incorporated ykcore, using libusb-1 which
 would probably make it more portable with Windows. Perhaps if I get around to it.
 
 =cut

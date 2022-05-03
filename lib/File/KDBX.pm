@@ -1716,7 +1716,7 @@ A text string associated with the database. Often unset.
 
 The UUID of a cipher used to encrypt the database when stored as a file.
 
-See L</File::KDBX::Cipher>.
+See L<File::KDBX::Cipher>.
 
 =attr compression_flags
 
@@ -1821,7 +1821,7 @@ Number of days until the agent should prompt to recommend changing the master ke
 Number of days until the agent should prompt to force changing the master key.
 
 Note: This is purely advisory. It is up to the individual agent software to actually enforce it.
-C<File::KDBX> does NOT enforce it.
+B<File::KDBX> does NOT enforce it.
 
 =attr custom_icons
 
@@ -2380,7 +2380,7 @@ your own query logic, like this:
 
 Iterators are the built-in way to navigate or walk the database tree. You get an iterator from L</entries>,
 L</groups> and L</objects>. You can specify the search algorithm to iterate over objects in different orders
-using the C<algorith> option, which can be one of these L<constants|File::KDBX::Constants/":iteration">:
+using the C<algorithm> option, which can be one of these L<constants|File::KDBX::Constants/":iteration">:
 
 =for :list
 * C<ITERATION_IDS> - Iterative deepening search (default)
