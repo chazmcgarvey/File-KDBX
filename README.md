@@ -8,29 +8,34 @@ File::KDBX - Encrypted database to store secret text and files
 
 # VERSION
 
-version 0.901
+version 0.902
 
 # SYNOPSIS
 
 ```perl
 use File::KDBX;
 
+# Create a new database from scratch
 my $kdbx = File::KDBX->new;
 
+# Add some objects to the database
 my $group = $kdbx->add_group(
     name => 'Passwords',
 );
-
 my $entry = $group->add_entry(
     title    => 'My Bank',
+    username => 'mreynolds',
     password => 's3cr3t',
 );
 
+# Save the database to the filesystem
 $kdbx->dump_file('passwords.kdbx', 'M@st3rP@ssw0rd!');
 
-$kdbx = File::KDBX->load_file('passwords.kdbx', 'M@st3rP@ssw0rd!');
+# Load the database from the filesystem into a new database instance
+my $kdbx2 = File::KDBX->load_file('passwords.kdbx', 'M@st3rP@ssw0rd!');
 
-$kdbx->entries->each(sub {
+# Iterate over database entries, print entry titles
+$kdbx2->entries->each(sub {
     my ($entry) = @_;
     say 'Entry: ', $entry->title;
 });
@@ -124,7 +129,7 @@ A text string associated with the database. Often unset.
 
 The UUID of a cipher used to encrypt the database when stored as a file.
 
-See ["File::KDBX::Cipher"](#file-kdbx-cipher).
+See [File::KDBX::Cipher](https://metacpan.org/pod/File%3A%3AKDBX%3A%3ACipher).
 
 ## compression\_flags
 
@@ -229,7 +234,7 @@ Number of days until the agent should prompt to recommend changing the master ke
 Number of days until the agent should prompt to force changing the master key.
 
 Note: This is purely advisory. It is up to the individual agent software to actually enforce it.
-`File::KDBX` does NOT enforce it.
+**File::KDBX** does NOT enforce it.
 
 ## custom\_icons
 
@@ -432,7 +437,7 @@ might increase this value. For example, setting the KDF to Argon2 will increase 
 least `KDBX_VERSION_4_0` (i.e. `0x00040000`) because Argon2 was introduced with KDBX4.
 
 This method never returns less than `KDBX_VERSION_3_1` (i.e. `0x00030001`). That file version is so
-ubiquitious and well-supported, there are seldom reasons to dump in a lesser format nowadays.
+ubiquitous and well-supported, there are seldom reasons to dump in a lesser format nowadays.
 
 **WARNING:** If you dump a database with a minimum version higher than the current ["version"](#version), the dumper will
 typically issue a warning and automatically upgrade the database. This seems like the safest behavior in order
@@ -1376,7 +1381,7 @@ while (my $entry = $entries->next) {
 
 Iterators are the built-in way to navigate or walk the database tree. You get an iterator from ["entries"](#entries),
 ["groups"](#groups) and ["objects"](#objects). You can specify the search algorithm to iterate over objects in different orders
-using the `algorith` option, which can be one of these [constants](https://metacpan.org/pod/File%3A%3AKDBX%3A%3AConstants#iteration):
+using the `algorithm` option, which can be one of these [constants](https://metacpan.org/pod/File%3A%3AKDBX%3A%3AConstants#iteration):
 
 - `ITERATION_IDS` - Iterative deepening search (default)
 - `ITERATION_DFS` - Depth-first search
@@ -1491,13 +1496,6 @@ This software will alter its behavior depending on the value of certain environm
 - `PERL_FILE_KDBX_XS` - Do not use [File::KDBX::XS](https://metacpan.org/pod/File%3A%3AKDBX%3A%3AXS) if false (default: true)
 - `PERL_ONLY` - Do not use [File::KDBX::XS](https://metacpan.org/pod/File%3A%3AKDBX%3A%3AXS) if true (default: false)
 - `NO_FORK` - Do not fork if true (default: false)
-
-# CAVEATS
-
-Some features (e.g. parsing) require 64-bit perl. It should be possible and actually pretty easy to make it
-work using [Math::BigInt](https://metacpan.org/pod/Math%3A%3ABigInt), but I need to build a 32-bit perl in order to test it and frankly I'm still
-figuring out how. I'm sure it's simple so I'll mark this one "TODO", but for now an exception will be thrown
-when trying to use such features with undersized IVs.
 
 # SEE ALSO
 
