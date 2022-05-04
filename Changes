@@ -3,6 +3,7 @@ Revision history for File-KDBX.
 {{$NEXT}}
 
   * Added support for 32-bit perls.
+  * API change: Rename iterator accessors on group to all_*.
   * Declared perl 5.10.0 prerequisite. I have no intention of supporting 5.8 or earlier.
   * Fixed more other broken tests -- thanks CPAN testers.
 

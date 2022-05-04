@@ -342,7 +342,7 @@ might increase this value. For example, setting the KDF to Argon2 will increase 
 least C<KDBX_VERSION_4_0> (i.e. C<0x00040000>) because Argon2 was introduced with KDBX4.
 
 This method never returns less than C<KDBX_VERSION_3_1> (i.e. C<0x00030001>). That file version is so
-ubiquitious and well-supported, there are seldom reasons to dump in a lesser format nowadays.
+ubiquitous and well-supported, there are seldom reasons to dump in a lesser format nowadays.
 
 B<WARNING:> If you dump a database with a minimum version higher than the current L</version>, the dumper will
 typically issue a warning and automatically upgrade the database. This seems like the safest behavior in order
@@ -637,7 +637,7 @@ sub groups {
     my %args = @_ % 2 == 0 ? @_ : (base => shift, @_);
     my $base = delete $args{base} // $self->root;
 
-    return $base->groups_deeply(%args);
+    return $base->all_groups(%args);
 }
 
 ##############################################################################
@@ -695,7 +695,7 @@ sub entries {
     my %args = @_ % 2 == 0 ? @_ : (base => shift, @_);
     my $base = delete $args{base} // $self->root;
 
-    return $base->entries_deeply(%args);
+    return $base->all_entries(%args);
 }
 
 ##############################################################################
@@ -716,7 +716,7 @@ sub objects {
     my %args = @_ % 2 == 0 ? @_ : (base => shift, @_);
     my $base = delete $args{base} // $self->root;
 
-    return $base->objects_deeply(%args);
+    return $base->all_objects(%args);
 }
 
 sub __iter__ { $_[0]->objects }
@@ -1909,22 +1909,27 @@ __END__
 
     use File::KDBX;
 
+    # Create a new database from scratch
     my $kdbx = File::KDBX->new;
 
+    # Add some objects to the database
     my $group = $kdbx->add_group(
         name => 'Passwords',
     );
-
     my $entry = $group->add_entry(
         title    => 'My Bank',
+        username => 'mreynolds',
         password => 's3cr3t',
     );
 
+    # Save the database to the filesystem
     $kdbx->dump_file('passwords.kdbx', 'M@st3rP@ssw0rd!');
 
-    $kdbx = File::KDBX->load_file('passwords.kdbx', 'M@st3rP@ssw0rd!');
+    # Load the database from the filesystem into a new database instance
+    my $kdbx2 = File::KDBX->load_file('passwords.kdbx', 'M@st3rP@ssw0rd!');
 
-    $kdbx->entries->each(sub {
+    # Iterate over database entries, print entry titles
+    $kdbx2->entries->each(sub {
         my ($entry) = @_;
         say 'Entry: ', $entry->title;
     });

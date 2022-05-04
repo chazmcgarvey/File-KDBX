@@ -1055,7 +1055,8 @@ There is also some metadata associated with an entry. Each entry in a database i
 a UUID. An entry can also have an icon associated with it, and there are various timestamps. Take a look at
 the attributes to see what's available.
 
-A B<File::KDBX::Entry> is a subclass of L<File::KDBX::Object>.
+A B<File::KDBX::Entry> is a subclass of L<File::KDBX::Object>. View its documentation to see other attributes
+and methods available on entries.
 
 =head2 Placeholders
 
