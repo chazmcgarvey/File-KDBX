@@ -600,6 +600,7 @@ sub pack_Ql {
     require Config;
     if ($Config::Config{ivsize} < 8) {
         if (blessed $num && $num->can('as_hex')) {
+            require Math::BigInt;
             return "\xff\xff\xff\xff\xff\xff\xff\xff" if Math::BigInt->new('18446744073709551615') <= $num;
             return "\x00\x00\x00\x00\x00\x00\x00\x80" if $num <= Math::BigInt->new('-9223372036854775808');
             my $neg;
