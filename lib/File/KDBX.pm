@@ -16,7 +16,7 @@ use Hash::Util::FieldHash qw(fieldhashes);
 use List::Util qw(any first);
 use Ref::Util qw(is_ref is_arrayref is_plain_hashref);
 use Scalar::Util qw(blessed);
-use Time::Piece;
+use Time::Piece 1.33;
 use boolean;
 use namespace::clean;
 

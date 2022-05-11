@@ -111,7 +111,7 @@ subtest 'KDBX4.1 upgrade' => sub {
     is $kdbx->minimum_version, KDBX_VERSION_4_1, 'Icon with name requires upgrade';
     $kdbx->remove_custom_icon($icon_uuid);
     is $kdbx->minimum_version, KDBX_VERSION_3_1, 'Reset upgrade requirement';
-    $icon_uuid = $kdbx->add_custom_icon('data2', last_modification_time => gmtime);
+    $icon_uuid = $kdbx->add_custom_icon('data2', last_modification_time => scalar gmtime);
     is $kdbx->minimum_version, KDBX_VERSION_4_1, 'Icon with modtime requires upgrade';
     $kdbx->remove_custom_icon($icon_uuid);
     is $kdbx->minimum_version, KDBX_VERSION_3_1, 'Reset upgrade requirement';

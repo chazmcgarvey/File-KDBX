@@ -13,7 +13,7 @@ use List::Util 1.33 qw(any all);
 use Module::Load;
 use Ref::Util qw(is_arrayref is_coderef is_hashref is_ref is_refref is_scalarref);
 use Scalar::Util qw(blessed looks_like_number readonly);
-use Time::Piece;
+use Time::Piece 1.33;
 use boolean;
 use namespace::clean -except => 'import';
 

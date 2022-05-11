@@ -13,7 +13,7 @@ use Hash::Util::FieldHash;
 use List::Util qw(any sum0);
 use Ref::Util qw(is_coderef is_ref);
 use Scalar::Util qw(blessed);
-use Time::Piece;
+use Time::Piece 1.33;
 use boolean;
 use namespace::clean;
 

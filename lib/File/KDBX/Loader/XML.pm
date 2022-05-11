@@ -11,7 +11,7 @@ use File::KDBX::Error;
 use File::KDBX::Safe;
 use File::KDBX::Util qw(:class :int :text gunzip erase_scoped);
 use Scalar::Util qw(looks_like_number);
-use Time::Piece;
+use Time::Piece 1.33;
 use XML::LibXML::Reader;
 use boolean;
 use namespace::clean;
@@ -496,7 +496,7 @@ sub _read_xml_content {
     my $decoded = eval { _decode_primitive($content, $type) };
     if (my $err = $@) {
         ref $err and $err->details(node => $reader->nodePath, line => $reader->lineNumber);
-        throw $err
+        throw $err;
     }
 
     return $decoded;
@@ -536,9 +536,8 @@ sub _decode_datetime {
         $binary .= \0 x (8 - length($binary)) if length($binary) < 8;
         my ($seconds_since_ad1) = unpack_Ql($binary);
         my $epoch = $seconds_since_ad1 - TIME_SECONDS_AD1_TO_UNIX_EPOCH;
-        return Time::Piece->new($epoch);
+        return gmtime($epoch);
     }
-
 
     my $dt = eval { Time::Piece->strptime($_, '%Y-%m-%dT%H:%M:%SZ') };
     if (my $err = $@) {

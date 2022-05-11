@@ -15,7 +15,7 @@ use List::Util qw(first sum0);
 use Ref::Util qw(is_coderef is_hashref is_plain_hashref);
 use Scalar::Util qw(blessed looks_like_number);
 use Storable qw(dclone);
-use Time::Piece;
+use Time::Piece 1.33;
 use boolean;
 use namespace::clean;
 
