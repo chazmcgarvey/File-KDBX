@@ -156,6 +156,7 @@ sub each {
 =method where
 
     \&iterator = $iterator->grep(\&query);
+    \&iterator = $iterator->grep(sub($item) { ... });
 
 Get a new iterator draining from an existing iterator but providing only items that pass a test or are matched
 by a query. In its basic form this method is very much like perl's built-in grep function, except for
@@ -319,7 +320,7 @@ sub nsort_by { shift->norder_by(@_) }
 
 Get a new iterator draining from an existing iterator but providing only a limited number of items.
 
-C<limit> as an alias for L<< Iterator::Simple/"$iterator->head($count)" >>.
+C<limit> is an alias for L<< Iterator::Simple/"$iterator->head($count)" >>.
 
 =cut
 
@@ -394,7 +395,7 @@ __END__
 
 A buffered iterator compatible with and expanding upon L<Iterator::Simple>, this provides an easy way to
 navigate a L<File::KDBX> database. The documentation for B<Iterator::Simple> documents functions and methods
-supported but this iterator that are not documented here, so consider that additional reading.
+supported by this iterator that are not documented here, so consider that additional reading.
 
 =head2 Buffer
 
@@ -415,5 +416,8 @@ for infinite iterators because your computer doesn't have infinite memory. This 
 B<File::KDBX> lists which are always finite -- unless you do something weird like force a child group to be
 its own ancestor -- but I'm noting it here as a potential issue if you use this iterator class for other
 things (which you probably shouldn't do).
+
+KDBX databases are always fully-loaded into memory anyway, so there's not a significant memory cost to
+draining an iterator completely.
 
 =cut

@@ -438,7 +438,7 @@ Get a compression constant from an integer or string value.
 
 =head2 :cipher
 
-Constants related ciphers:
+Constants related to ciphers:
 
 =for :list
 = C<CIPHER_UUID_AES128>
