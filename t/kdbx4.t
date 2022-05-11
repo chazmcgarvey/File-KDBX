@@ -10,7 +10,7 @@ use TestCommon;
 use File::KDBX;
 use File::KDBX::Constants qw(:version :kdf);
 use Test::Deep;
-use Test::More;
+use Test::More 1.001004_001;
 use boolean qw(:all);
 
 subtest 'Verify Format400' => sub {
