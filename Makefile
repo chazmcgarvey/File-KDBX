@@ -25,6 +25,9 @@ cover:
 dist:
 	$(DZIL) build
 
+distclean: clean
+	$(RM) -r cover_db
+
 test:
 	$(PROVE) -l $(if $(V),-vj1)
 
@@ -36,4 +39,4 @@ smokers:
 	|$(PERL) -pe 's/"//g' \
 	|build-perl-smokers file-kdbx
 
-.PHONY: all bootstrap clean cover dist smoke smokers test
+.PHONY: all bootstrap clean cover dist distclean smoke smokers test
