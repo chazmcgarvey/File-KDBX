@@ -8,7 +8,7 @@ File::KDBX - Encrypted database to store secret text and files
 
 # VERSION
 
-version 0.903
+version 0.904
 
 # SYNOPSIS
 
@@ -1040,7 +1040,7 @@ The first factor is up to you. This module does not enforce strong master keys. 
 generate strong keys.
 
 The KDBX format allows for the key derivation function to be tuned. The idea is that you want each single
-brute-foce attempt to be expensive (in terms of time, CPU usage or memory usage), so that making a lot of
+brute-force attempt to be expensive (in terms of time, CPU usage or memory usage), so that making a lot of
 attempts (which would be required if you have a strong master key) gets _really_ expensive.
 
 How expensive you want to make each attempt is up to you and can depend on the application.
@@ -1186,7 +1186,7 @@ my $entries = $kdbx->entries->where(\5, '>=', qw[usage_count]);
 
 It helps to read it right-to-left, like "usage\_count is greater than or equal to 5".
 
-If you find the disambiguating structures to be distracting or confusing, you can also the
+If you find the disambiguating structures to be distracting or confusing, you can also use the
 ["simple\_expression\_query" in File::KDBX::Util](https://metacpan.org/pod/File%3A%3AKDBX%3A%3AUtil#simple_expression_query) function as a more intuitive alternative. The following example is
 equivalent to the previous:
 
@@ -1245,7 +1245,7 @@ my $entries = $kdbx->entries->where({
 Note: ["ICON\_SMARTPHONE" in File::KDBX::Constants](https://metacpan.org/pod/File%3A%3AKDBX%3A%3AConstants#ICON_SMARTPHONE) is just a constant from [File::KDBX::Constants](https://metacpan.org/pod/File%3A%3AKDBX%3A%3AConstants). It isn't
 special to this example or to queries generally. We could have just used a literal number.
 
-The important thing to notice here is how we wrapped the condition in another arrayref with a single key-value
+The important thing to notice here is how we wrapped the condition in another hashref with a single key-value
 pair where the key is the name of an operator and the value is the thing to match against. The supported
 operators are:
 
