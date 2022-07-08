@@ -11,7 +11,7 @@ use File::KDBX::Constants qw(:history :icon);
 use File::KDBX::Error;
 use File::KDBX::Util qw(:assert :class :coercion :erase :function :uri generate_uuid load_optional);
 use Hash::Util::FieldHash;
-use List::Util qw(first sum0);
+use List::Util qw(any first sum0);
 use Ref::Util qw(is_coderef is_hashref is_plain_hashref);
 use Scalar::Util qw(blessed looks_like_number);
 use Storable qw(dclone);
@@ -654,8 +654,8 @@ sub _hotp_params {
 
     my %params = (
         type    => 'hotp',
-        issuer  => $self->title     || 'KDBX',
-        account => $self->username  || 'none',
+        issuer  => $self->expand_title      || 'KDBX',
+        account => $self->expand_username   || 'none',
         digits  => 6,
         counter => $self->string_value('HmacOtp-Counter') // 0,
         $self->_otp_secret_params('Hmac'),
@@ -680,8 +680,8 @@ sub _totp_params {
     );
     my %params = (
         type        => 'totp',
-        issuer      => $self->title     || 'KDBX',
-        account     => $self->username  || 'none',
+        issuer      => $self->expand_title      || 'KDBX',
+        account     => $self->expand_username   || 'none',
         digits      => $self->string_value('TimeOtp-Length') // 6,
         algorithm   => $algorithms{$self->string_value('TimeOtp-Algorithm') || ''} || 'sha1',
         period      => $self->string_value('TimeOtp-Period') // 30,

@@ -1,6 +1,7 @@
 Revision history for File-KDBX.
 
 {{$NEXT}}
+  * Use expanded title, username in OTP parameters.
 
 0.903     2022-05-11 17:17:13-0600
 
