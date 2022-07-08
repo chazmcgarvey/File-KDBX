@@ -60,7 +60,7 @@ An array of window title / keystroke sequence associations.
         keystroke_sequence  => '{USERNAME}{TAB}{PASSWORD}{ENTER}',
     }
 
-Keystroke sequences can have </Placeholders>, most commonly C<{USERNAME}> and C<{PASSWORD}>.
+Keystroke sequences can have L</Placeholders>, most commonly C<{USERNAME}> and C<{PASSWORD}>.
 
 =attr quality_check
 
@@ -298,7 +298,7 @@ sub string_value {
 
 =method expand_string_value
 
-    $string = $entry->expand_string_value;
+    $string = $entry->expand_string_value($string_key);
 
 Same as L</string_value> but will substitute placeholders and resolve field references. Any placeholders that
 do not expand to values are left as-is.
@@ -307,6 +307,26 @@ See L</Placeholders>.
 
 Some placeholders (notably field references) require the entry be connected to a database and will throw an
 error if it is not.
+
+=method expand_notes
+
+Shortcut equivalent to C<< ->expand_string_value('Notes') >>.
+
+=method expand_password
+
+Shortcut equivalent to C<< ->expand_string_value('Password') >>.
+
+=method expand_title
+
+Shortcut equivalent to C<< ->expand_string_value('Title') >>.
+
+=method expand_url
+
+Shortcut equivalent to C<< ->expand_string_value('URL') >>.
+
+=method expand_username
+
+Shortcut equivalent to C<< ->expand_string_value('UserName') >>.
 
 =cut
 
@@ -359,26 +379,6 @@ sub expand_string_value {
     my $cleanup = erase_scoped $str;
     return $self->_expand_string($str);
 }
-
-=attr expand_notes
-
-Shortcut equivalent to C<< ->expand_string_value('Notes') >>.
-
-=attr expand_password
-
-Shortcut equivalent to C<< ->expand_string_value('Password') >>.
-
-=attr expand_title
-
-Shortcut equivalent to C<< ->expand_string_value('Title') >>.
-
-=attr expand_url
-
-Shortcut equivalent to C<< ->expand_string_value('URL') >>.
-
-=attr expand_username
-
-Shortcut equivalent to C<< ->expand_string_value('UserName') >>.
 
 =method other_strings
 
@@ -553,7 +553,7 @@ sub hmac_otp {
     $params{secret} = encode_b32r($params{secret}) if !$params{base32};
     $params{base32} = 1;
 
-    my $otp = eval {Pass::OTP::otp(%params, @_) };
+    my $otp = eval { Pass::OTP::otp(%params, @_) };
     if (my $err = $@) {
         throw 'Unable to generate HOTP', error => $err;
     }
@@ -587,7 +587,7 @@ sub time_otp {
     $params{secret} = encode_b32r($params{secret}) if !$params{base32};
     $params{base32} = 1;
 
-    my $otp = eval {Pass::OTP::otp(%params, @_) };
+    my $otp = eval { Pass::OTP::otp(%params, @_) };
     if (my $err = $@) {
         throw 'Unable to generate TOTP', error => $err;
     }
