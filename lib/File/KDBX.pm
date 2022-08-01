@@ -647,7 +647,7 @@ sub groups {
     $kdbx->add_entry($entry, %options);
     $kdbx->add_entry(%entry_attributes, %options);
 
-Add a entry to a database. This is equivalent to identifying a parent group and calling
+Add an entry to a database. This is equivalent to identifying a parent group and calling
 L<File::KDBX::Group/add_entry> on the parent group, forwarding the arguments. Available options:
 
 =for :list
@@ -1406,7 +1406,7 @@ secure the database when dumped. The attributes that will be randomized are:
 * L</transform_seed>
 
 Randomizing these values has no effect on a loaded database. These are only used when a database is dumped.
-You normally do not need to call this method explicitly because the dumper does it explicitly by default.
+You normally do not need to call this method explicitly because the dumper does it for you by default.
 
 =cut
 

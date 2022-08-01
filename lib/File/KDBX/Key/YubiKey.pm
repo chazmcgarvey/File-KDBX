@@ -95,7 +95,7 @@ sub challenge {
     @keys = File::KDBX::Key::YubiKey->scan(%options);
 
 Find connected, configured YubiKeys that are capable of responding to a challenge. This can take several
-second.
+seconds.
 
 Options:
 
@@ -151,7 +151,7 @@ sub scan {
     $device = $key->device($device);
 
 Get or set the device number, which is the index number starting and incrementing from zero assigned
-to the YubiKey device. If there is only one detected YubiKey device, it's number is C<0>.
+to the YubiKey device. If there is only one detected YubiKey device, its number is C<0>.
 
 Defaults to C<0>.
 
@@ -454,7 +454,7 @@ override the default programs, these environment variables can be used.
 This doesn't work yet on Windows, probably. The hangup is pretty silly: IPC. Theoretically it would work if
 C<run_forked> from L<IPC::Cmd> worked in Windows, but it probably doesn't. I spent a couple hours applying
 various quirks to L<IPC::Open3> and L<IPC::Cmd> implementations but never quite got it to worked reliably
-without deadlocks. Maybe I'll revisit this later. Hit me up so I know if there's demand.
+without deadlocks. Maybe I'll revisit this later. Hit me up so I know if there's interest.
 
 It would also be possible to implement this as an XS module that incorporated ykcore, using libusb-1 which
 would probably make it more portable with Windows. Perhaps if I get around to it.
