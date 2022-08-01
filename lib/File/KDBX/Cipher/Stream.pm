@@ -122,6 +122,7 @@ sub _stream {
                 $counter = int($offset / 64);
                 $pos = $offset % 64;
             }
+            load $pkg;
             my $s = $pkg->new($self->key, $self->iv, $counter);
             # seek to correct position within block
             $s->keystream($pos) if $pos;
