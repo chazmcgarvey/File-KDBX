@@ -1368,7 +1368,8 @@ Remove just as many older historical entries as necessary to get under certain l
     limit: -1)
 * C<max_size> - Maximum total size (in bytes) of historical entries to keep (default: value of
     L</history_max_size>, no limit: -1)
-* C<max_age> - Maximum age (in days) of historical entries to keep (default: 365, no limit: -1)
+* C<max_age> - Maximum age (in days) of historical entries to keep (default: value of
+    L</maintenance_history_days>, no limit: -1)
 
 =cut
 
