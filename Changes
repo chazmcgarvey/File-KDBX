@@ -1,6 +1,7 @@
 Revision history for File-KDBX.
 
 {{$NEXT}}
+  * Declare Time::Local 1.19 as a required dependency.
   * Declare CryptX 0.055 as a required dependency. Thanks HIGHTOWE.
 
 0.904     2022-07-07 21:51:17-0600
