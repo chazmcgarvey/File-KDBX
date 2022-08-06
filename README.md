@@ -8,7 +8,7 @@ File::KDBX - Encrypted database to store secret text and files
 
 # VERSION
 
-version 0.904
+version 0.905
 
 # SYNOPSIS
 
@@ -546,7 +546,7 @@ $kdbx->add_entry($entry, %options);
 $kdbx->add_entry(%entry_attributes, %options);
 ```
 
-Add a entry to a database. This is equivalent to identifying a parent group and calling
+Add an entry to a database. This is equivalent to identifying a parent group and calling
 ["add\_entry" in File::KDBX::Group](https://metacpan.org/pod/File%3A%3AKDBX%3A%3AGroup#add_entry) on the parent group, forwarding the arguments. Available options:
 
 - `group` - Group object or group UUID to add the entry to (default: root group)
@@ -842,7 +842,7 @@ Remove just as many older historical entries as necessary to get under certain l
 
 - `max_items` - Maximum number of historical entries to keep (default: value of ["history\_max\_items"](#history_max_items), no limit: -1)
 - `max_size` - Maximum total size (in bytes) of historical entries to keep (default: value of ["history\_max\_size"](#history_max_size), no limit: -1)
-- `max_age` - Maximum age (in days) of historical entries to keep (default: 365, no limit: -1)
+- `max_age` - Maximum age (in days) of historical entries to keep (default: value of ["maintenance\_history\_days"](#maintenance_history_days), no limit: -1)
 
 ## randomize\_seeds
 
@@ -860,7 +860,7 @@ secure the database when dumped. The attributes that will be randomized are:
 - ["transform\_seed"](#transform_seed)
 
 Randomizing these values has no effect on a loaded database. These are only used when a database is dumped.
-You normally do not need to call this method explicitly because the dumper does it explicitly by default.
+You normally do not need to call this method explicitly because the dumper does it for you by default.
 
 ## key
 
