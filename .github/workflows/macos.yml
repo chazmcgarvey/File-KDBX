@@ -18,7 +18,13 @@ jobs:
       - name: Print perl version
         run: perl -V
       - name: Install dzil
-        run: cpanm -n Dist::Zilla
+        run: |
+          cpanm -n -l$HOME/perl5 local::lib Dist::Zilla
+          echo "$HOME/perl5/bin" >>$GITHUB_PATH
+          echo "PERL5LIB=$HOME/perl5/lib/perl5" >>$GITHUB_ENV
+          echo "PERL_LOCAL_LIB_ROOT=$HOME/perl5:$PERL_LOCAL_LIB_ROOT" >>$GITHUB_ENV
+          echo "PERL_MB_OPT=--install_base $HOME/perl5" >>$GITHUB_ENV
+          echo "PERL_MM_OPT=INSTALL_BASE=$HOME/perl5" >>$GITHUB_ENV
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Install author dependencies
