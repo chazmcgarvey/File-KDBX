@@ -2,6 +2,7 @@ Revision history for File-KDBX.
 
 {{$NEXT}}
   * Fixed transform_rounds method to work with Argon KDF. Thanks HIGHTOWE.
+  * Fixed bug preventing memory protection on new databases. Thanks HIGHTOWE.
 
 0.905     2022-08-06 12:12:42-0600
   * Declared Time::Local 1.19 as a required dependency.

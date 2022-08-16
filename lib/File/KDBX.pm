@@ -1176,16 +1176,24 @@ sub _remove_safe { delete $SAFE{$_[0]} }
 sub lock {
     my $self = shift;
 
-    $self->_safe and return $self;
-
+    # Find things to lock:
     my @strings;
-
     $self->entries(history => 1)->each(sub {
-        push @strings, grep { $_->{protect} } values %{$_->strings}, values %{$_->binaries};
+        my $strings = $_->strings;
+        for my $string_key (keys %$strings) {
+            my $string = $strings->{$string_key};
+            push @strings, $string if $string->{protect} // $self->memory_protection($string_key);
+        }
+        push @strings, grep { $_->{protect} } values %{$_->binaries};
     });
+    return $self if !@strings;  # nothing to do
 
-    $self->_safe(File::KDBX::Safe->new(\@strings));
-
+    if (my $safe = $self->_safe) {
+        $safe->add(\@strings);
+    }
+    else {
+        $self->_safe(File::KDBX::Safe->new(\@strings));
+    }
     return $self;
 }
 

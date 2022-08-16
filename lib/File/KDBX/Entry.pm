@@ -253,14 +253,16 @@ sub string {
 
     return $self->{strings}{$key} = $args{value} if is_plain_hashref($args{value});
 
+    # Auto-vivify the standard strings.
+    if (!exists $self->{strings}{$key} && $STANDARD_STRINGS{$key}) {
+        $args{value} //= '';
+        $args{protect} //= true if $self->_protect($key);
+    }
+
     while (my ($field, $value) = each %args) {
         $self->{strings}{$key}{$field} = $value;
     }
 
-    # Auto-vivify the standard strings.
-    if ($STANDARD_STRINGS{$key}) {
-        return $self->{strings}{$key} //= {value => '', $self->_protect($key) ? (protect => true) : ()};
-    }
     return $self->{strings}{$key};
 }
 
