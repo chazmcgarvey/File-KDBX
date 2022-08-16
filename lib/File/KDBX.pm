@@ -1482,7 +1482,6 @@ sub kdf {
     my %args = @_ % 2 == 1 ? (params => shift, @_) : @_;
 
     my $params = $args{params};
-    my $compat = $args{compatible} // 1;
 
     $params //= $self->kdf_parameters;
     $params = {%{$params || {}}};
@@ -1508,18 +1507,22 @@ sub kdf {
 
 sub transform_seed {
     my $self = shift;
+    my $param = KDF_PARAM_AES_SEED;     # Short cut: Argon2 uses the same parameter name ("S")
     $self->headers->{+HEADER_TRANSFORM_SEED} =
-        $self->headers->{+HEADER_KDF_PARAMETERS}{+KDF_PARAM_AES_SEED} = shift if @_;
+        $self->headers->{+HEADER_KDF_PARAMETERS}{$param} = shift if @_;
     $self->headers->{+HEADER_TRANSFORM_SEED} =
-        $self->headers->{+HEADER_KDF_PARAMETERS}{+KDF_PARAM_AES_SEED} //= random_bytes(32);
+        $self->headers->{+HEADER_KDF_PARAMETERS}{$param} //= random_bytes(32);
 }
 
 sub transform_rounds {
     my $self = shift;
+    require File::KDBX::KDF;
+    my $info = $File::KDBX::KDF::ROUNDS_INFO{$self->kdf_parameters->{+KDF_PARAM_UUID} // ''} //
+        $File::KDBX::KDF::DEFAULT_ROUNDS_INFO;
     $self->headers->{+HEADER_TRANSFORM_ROUNDS} =
-        $self->headers->{+HEADER_KDF_PARAMETERS}{+KDF_PARAM_AES_ROUNDS} = shift if @_;
+        $self->headers->{+HEADER_KDF_PARAMETERS}{$info->{p}} = shift if @_;
     $self->headers->{+HEADER_TRANSFORM_ROUNDS} =
-        $self->headers->{+HEADER_KDF_PARAMETERS}{+KDF_PARAM_AES_ROUNDS} //= 100_000;
+        $self->headers->{+HEADER_KDF_PARAMETERS}{$info->{p}} //= $info->{d};
 }
 
 =method cipher
@@ -1712,7 +1715,7 @@ L<File::KDBX::Loader::Raw>.
 
 =attr comment
 
-A text string associated with the database. Often unset.
+A text string associated with the database stored unencrypted in the file header. Often unset.
 
 =attr cipher_id
 
@@ -1743,7 +1746,7 @@ The transform seed I<should> be changed each time the database is saved to file.
 =attr transform_rounds
 
 The number of rounds or iterations used in the key derivation function. Increasing this number makes loading
-and saving the database slower by design in order to make dictionary and brute force attacks more costly.
+and saving the database slower in order to make dictionary and brute force attacks more costly.
 
 =attr encryption_iv
 

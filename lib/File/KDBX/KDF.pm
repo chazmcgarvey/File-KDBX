@@ -16,6 +16,15 @@ our $VERSION = '999.999'; # VERSION
 
 my %KDFS;
 
+our %ROUNDS_INFO = (
+    KDF_UUID_ARGON2D()  => {p => KDF_PARAM_ARGON2_ITERATIONS, d => KDF_DEFAULT_ARGON2_ITERATIONS},
+    KDF_UUID_ARGON2ID() => {p => KDF_PARAM_ARGON2_ITERATIONS, d => KDF_DEFAULT_ARGON2_ITERATIONS},
+);
+our $DEFAULT_ROUNDS_INFO = {
+    p => KDF_PARAM_AES_ROUNDS,
+    d => KDF_DEFAULT_AES_ROUNDS,
+};
+
 =method new
 
     $kdf = File::KDBX::KDF->new(parameters => \%params);
@@ -43,7 +52,8 @@ sub new {
 
     $kdf = $kdf->init(%attributes);
 
-Called by method to set attributes. You normally shouldn't call this.
+Called by L</new> to set attributes. You normally shouldn't call this. Returns itself to allow method
+chaining.
 
 =cut
 
@@ -109,7 +119,7 @@ sub _transform { die 'Not implemented' }
 
     $kdf->randomize_seed;
 
-Generate a new random seed/salt.
+Generate and set a new random seed/salt.
 
 =cut
 

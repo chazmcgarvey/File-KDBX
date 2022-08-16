@@ -142,7 +142,8 @@ sub new_from_stream_id {
 
     $self->init;
 
-Initialize the cipher. Called by </new>.
+Called by L</new> to set attributes. You normally shouldn't call this. Returns itself to allow method
+chaining.
 
 =cut
 
