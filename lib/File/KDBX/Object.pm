@@ -664,9 +664,9 @@ sub _txns   { $TXNS{$_[0]} //= [] }
 sub _commit { die 'Not implemented' }
 
 # Get a reference to an object that represents an object's committed state. If there is no pending
-# transaction, this is just $self. If there is a transaction, this is the snapshot take before the transaction
-# began. This method is private because it provides direct access to the actual snapshot. It is important that
-# the snapshot not be changed or a rollback would roll back to an altered state.
+# transaction, this is just $self. If there is a transaction, this is the snapshot taken immediately before
+# the transaction began. This method is private because it provides direct access to the actual snapshot. It
+# is important that the snapshot not be changed or a rollback would roll back to an altered state.
 # This is used by File::KDBX::Dumper::XML so as to not dump uncommitted changes.
 sub _committed {
     my $self = shift;

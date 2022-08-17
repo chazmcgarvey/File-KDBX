@@ -238,6 +238,12 @@ sub _write_body {
     my $cipher = $kdbx->cipher(key => $final_key);
     $fh = File::KDBX::IO::Crypt->new($fh, cipher => $cipher);
 
+    my $got_iv_size = length($kdbx->headers->{+HEADER_ENCRYPTION_IV});
+    my $iv_size = $cipher->iv_size;
+    alert "Encryption IV should be $iv_size bytes long",
+        got         => $got_iv_size,
+        expected    => $iv_size if $got_iv_size != $iv_size;
+
     my $compress = $kdbx->headers->{+HEADER_COMPRESSION_FLAGS};
     if ($compress == COMPRESSION_GZIP) {
         load_optional('IO::Compress::Gzip');

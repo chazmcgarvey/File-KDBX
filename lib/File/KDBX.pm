@@ -40,9 +40,12 @@ sub new {
     # copy constructor
     return $_[0]->clone if @_ == 1 && blessed $_[0] && $_[0]->isa($class);
 
-    my $self = bless {}, $class;
+    my $data;
+    $data = shift if is_plain_hashref($_[0]);
+
+    my $self = bless $data // {}, $class;
     $self->init(@_);
-    $self->_set_nonlazy_attributes if empty $self;
+    $self->_set_nonlazy_attributes if !$data;
     return $self;
 }
 
@@ -238,10 +241,12 @@ has raw             => coerce => \&to_string;
 
 # HEADERS
 has 'headers.comment'               => '',                          coerce => \&to_string;
-has 'headers.cipher_id'             => CIPHER_UUID_CHACHA20,        coerce => \&to_uuid;
+has 'headers.cipher_id'             => sub { $_[0]->version < KDBX_VERSION_4_0 ? CIPHER_UUID_AES256 : CIPHER_UUID_CHACHA20 },
+                                                                    coerce => \&to_uuid;
 has 'headers.compression_flags'     => COMPRESSION_GZIP,            coerce => \&to_compression_constant;
 has 'headers.master_seed'           => sub { random_bytes(32) },    coerce => \&to_string;
-has 'headers.encryption_iv'         => sub { random_bytes(16) },    coerce => \&to_string;
+has 'headers.encryption_iv'         => sub { random_bytes($_[0]->version < KDBX_VERSION_4_0 ? 16 : 12) },
+                                                                    coerce => \&to_string;
 has 'headers.stream_start_bytes'    => sub { random_bytes(32) },    coerce => \&to_string;
 has 'headers.kdf_parameters'        => sub {
     +{
@@ -1421,7 +1426,9 @@ You normally do not need to call this method explicitly because the dumper does 
 
 sub randomize_seeds {
     my $self = shift;
-    $self->encryption_iv(random_bytes(16));
+    my $iv_size = 16;
+    $iv_size = $self->cipher(key => "\0" x 32)->iv_size if KDBX_VERSION_4_0 <= $self->version;
+    $self->encryption_iv(random_bytes($iv_size));
     $self->inner_random_stream_key(random_bytes(64));
     $self->master_seed(random_bytes(32));
     $self->stream_start_bytes(random_bytes(32));
@@ -1555,8 +1562,8 @@ sub cipher {
     my $self = shift;
     my %args = @_;
 
-    $args{uuid} //= $self->headers->{+HEADER_CIPHER_ID};
-    $args{iv}   //= $self->headers->{+HEADER_ENCRYPTION_IV};
+    $args{uuid} //= $self->cipher_id;
+    $args{iv}   //= $self->encryption_iv;
 
     require File::KDBX::Cipher;
     return File::KDBX::Cipher->new(%args);

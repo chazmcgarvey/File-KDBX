@@ -31,6 +31,11 @@ sub _write_headers {
     local $headers->{+HEADER_TRANSFORM_SEED} = $kdbx->transform_seed;
     local $headers->{+HEADER_TRANSFORM_ROUNDS} = $kdbx->transform_rounds;
 
+    my $got_iv_size = length($headers->{+HEADER_ENCRYPTION_IV});
+    alert 'Encryption IV should be exactly 16 bytes long',
+        got         => $got_iv_size,
+        expected    => 16 if $got_iv_size != 16;
+
     if (nonempty (my $comment = $headers->{+HEADER_COMMENT})) {
         $buf .= $self->_write_header($fh, HEADER_COMMENT, $comment);
     }
