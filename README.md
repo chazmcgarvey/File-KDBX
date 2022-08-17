@@ -8,7 +8,7 @@ File::KDBX - Encrypted database to store secret text and files
 
 # VERSION
 
-version 0.905
+version 0.906
 
 # SYNOPSIS
 
@@ -122,7 +122,7 @@ Bytes contained within the encrypted layer of a KDBX file. This is only set when
 
 ## comment
 
-A text string associated with the database. Often unset.
+A text string associated with the database stored unencrypted in the file header. Often unset.
 
 ## cipher\_id
 
@@ -153,7 +153,7 @@ The transform seed _should_ be changed each time the database is saved to file.
 ## transform\_rounds
 
 The number of rounds or iterations used in the key derivation function. Increasing this number makes loading
-and saving the database slower by design in order to make dictionary and brute force attacks more costly.
+and saving the database slower in order to make dictionary and brute force attacks more costly.
 
 ## encryption\_iv
 

@@ -1,6 +1,8 @@
 Revision history for File-KDBX.
 
 {{$NEXT}}
+
+0.906     2022-08-16 19:44:09-0600
   * Fixed bug where dumping a fresh database could write wrong-sized encryption IV, making the resulting
     serialization unreadable by some KeePass implementations. Thanks HIGHTOWE.
   * Fixed bugs preventing the use of memory protection with fresh databases. Thanks HIGHTOWE.
