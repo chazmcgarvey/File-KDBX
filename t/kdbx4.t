@@ -168,8 +168,8 @@ sub test_upgrade_master_key_integrity {
 for my $test (
     [KDBX_VERSION_3_1, 'nothing', sub {}],
     [KDBX_VERSION_3_1, 'AES KDF', sub { $_->kdf_parameters(fast_kdf(KDF_UUID_AES)) }],
-    [KDBX_VERSION_4_0, 'Argon2D KDF', sub { $_->kdf_parameters(fast_kdf(KDF_UUID_ARGON2D)) }],
-    [KDBX_VERSION_4_0, 'Argon2ID KDF', sub { $_->kdf_parameters(fast_kdf(KDF_UUID_ARGON2ID)) }],
+    [KDBX_VERSION_4_0, 'Argon2d KDF', sub { $_->kdf_parameters(fast_kdf(KDF_UUID_ARGON2D)) }],
+    [KDBX_VERSION_4_0, 'Argon2id KDF', sub { $_->kdf_parameters(fast_kdf(KDF_UUID_ARGON2ID)) }],
     [KDBX_VERSION_4_0, 'public custom data', sub { $_->public_custom_data->{foo} = 'bar' }],
     [KDBX_VERSION_3_1, 'custom data', sub { $_->custom_data(foo => 'bar') }],
     [KDBX_VERSION_4_0, 'root group custom data', sub { $_->root->custom_data(baz => 'qux') }],

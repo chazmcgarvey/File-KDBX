@@ -4,7 +4,7 @@ package File::KDBX::KDF::Argon2;
 use warnings;
 use strict;
 
-use Crypt::Argon2 qw(argon2d_raw argon2id_raw);
+use Crypt::Argon2 0.003;
 use File::KDBX::Constants qw(:kdf);
 use File::KDBX::Error;
 use File::KDBX::Util qw(:class);
@@ -65,10 +65,10 @@ sub _transform {
         = ($self->uuid, $self->salt, $self->iterations, $self->memory, $self->parallelism);
 
     if ($uuid eq KDF_UUID_ARGON2D) {
-        return argon2d_raw($key, $salt, $iterations, $memory, $parallelism, length($salt));
+        return Crypt::Argon2::argon2d_raw($key, $salt, $iterations, $memory, $parallelism, length($salt));
     }
     elsif ($uuid eq KDF_UUID_ARGON2ID) {
-        return argon2id_raw($key, $salt, $iterations, $memory, $parallelism, length($salt));
+        return Crypt::Argon2::argon2id_raw($key, $salt, $iterations, $memory, $parallelism, length($salt));
     }
 
     throw 'Unknown Argon2 type', uuid => $uuid;

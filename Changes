@@ -1,6 +1,7 @@
 Revision history for File-KDBX.
 
 {{$NEXT}}
+  * Declared Crypt::Argon2 0.003 prerequisite. This version is needed for Argon2id. Thanks CPAN testers.
 
 0.906     2022-08-16 19:44:09-0600
   * Fixed bug where dumping a fresh database could write wrong-sized encryption IV, making the resulting
@@ -27,7 +28,7 @@ Revision history for File-KDBX.
   * Added support for 32-bit perls.
   * API change: Rename iterator accessors on group to all_*.
   * Declared perl 5.10.0 prerequisite. I have no intention of supporting 5.8 or earlier.
-  * Fixed more other broken tests. Thanks CPAN testers.
+  * Fixed more broken tests. Thanks CPAN testers.
 
 0.901     2022-05-02 01:18:13-0600
 
